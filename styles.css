@@ -62,107 +62,94 @@ input, textarea, select { width:100%; padding:12px; border:1px solid #cfd8d6; bo
 .session-card { padding:20px; text-decoration:none; color:inherit; border-radius: 12px; }
 .toast { position:fixed; left:50%; bottom:30px; transform:translateX(-50%); padding:12px 24px; border-radius:30px; background:var(--ink); color:white; font-size: 14px; z-index:100; pointer-events: none; }
 
-/* 强化学习详情页样式与多维自适应瀑布流布局 */
-.study-page { padding:30px 0 60px; }
-.study-top { display:flex; justify-content:space-between; gap:20px; align-items:flex-start; margin-bottom:20px; }
-.study-top h1 { margin:4px 0; font-size:28px; }
+.study-page { padding:20px 0 60px; }
 
-/* 搜索与工具栏 */
-.deck-tools { margin-bottom: 20px; display: flex; gap: 12px; flex-wrap: wrap; }
-#word-search-input { padding: 12px 16px; border-radius: 10px; font-size: 15px; border: 1px solid var(--line); background: white; box-shadow: 0 2px 8px rgba(0,0,0,0.03); }
-
-/* iPad / 多端自适应瀑布流网格 Grid */
-.word-masonry-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
-  gap: 20px;
-  align-items: start;
-  margin-bottom: 35px;
-}
-
-/* 单词卡片设计 */
-.word-card {
+/* 1. 顶部 Bar 与 模态框 Modal */
+.study-compact-bar {
   display: flex;
-  flex-direction: column;
-  gap: 12px;
-  border-radius: 14px;
-  background: #fff;
-  border: 1px solid var(--line);
-  transition: transform 0.2s, box-shadow 0.2s, border-color 0.2s;
-}
-.word-card:hover {
-  box-shadow: 0 8px 25px rgba(23,50,77,.1);
-}
-
-.word-head-title {
-  display: flex;
-  align-items: baseline;
   justify-content: space-between;
-  border-bottom: 2px solid var(--paper);
-  padding-bottom: 10px;
+  align-items: center;
+  padding: 14px 20px;
+  margin-bottom: 16px;
 }
-.word-head-title h2 { margin: 0; font-size: 24px; color: var(--ink); }
-.phonetic { color: var(--muted); font-size: 14px; font-family: sans-serif; font-weight: normal; }
+.study-compact-bar h2 { margin: 0; font-size: 18px; color: var(--ink); }
+.word-count-tag { background: #e9f4f1; color: var(--teal); padding: 2px 10px; border-radius: 12px; font-size: 12px; font-weight: bold; margin-left: 8px; }
 
-/* 分词性块 (Part of Speech block) */
-.pos-block {
-  background: var(--bg-subtle);
-  border-radius: 8px;
-  padding: 10px 12px;
-  border-left: 3px solid var(--teal);
-  margin-top: 4px;
+.modal-overlay {
+  position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+  background: rgba(0, 0, 0, 0.45);
+  display: flex; align-items: center; justify-content: center;
+  z-index: 1000; backdrop-filter: blur(4px);
 }
-.pos-badge {
-  display: inline-block;
-  background: var(--teal);
-  color: white;
-  font-size: 12px;
-  font-weight: bold;
-  padding: 2px 6px;
-  border-radius: 4px;
-  margin-right: 6px;
-}
-.pos-meaning { font-weight: 600; color: var(--ink); font-size: 15px; }
+.modal-overlay.hidden { display: none; }
+.modal-content { width: min(600px, 90vw); max-height: 85vh; overflow-y: auto; background: #ffffff; border-radius: 16px; padding: 24px; box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15); }
+.modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; border-bottom: 1px solid var(--line); padding-bottom: 8px; }
+.modal-close { background: none; border: none; font-size: 20px; cursor: pointer; color: #a0aec0; }
+.modal-summary { color: #4a5568; font-size: 14px; line-height: 1.6; margin-bottom: 16px; }
+.coverage-panel p span.used { color: var(--teal); font-weight: 600; }
+.coverage-panel p span.unused { color: var(--danger); font-weight: 600; }
+.modal-actions { margin-top: 20px; text-align: right; }
 
-/* 深度信息元数据扩展 */
-.meta-row { font-size: 13px; color: var(--muted); line-height: 1.5; }
-.meta-row strong { color: var(--ink); }
+/* 2. 工具栏与单卡片容器 */
+.deck-tools { display: flex; gap: 12px; max-width: 800px; margin: 0 auto 16px auto; }
+.word-select-dropdown { flex: 1; padding: 10px; border-radius: 8px; border: 1px solid var(--line); background: white; font-size: 14px; }
+.word-search-input { flex: 1; padding: 10px 14px; border-radius: 8px; border: 1px solid var(--line); font-size: 14px; }
 
-/* 例句解析盒 */
-.example-box {
-  background: #fff;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  padding: 10px;
-  margin-top: 8px;
-}
-.example-box .english { margin: 0; font-size: 14px; font-weight: 600; color: var(--ink); line-height: 1.4; }
-.example-box .chinese { margin: 4px 0 0 0; font-size: 13px; color: var(--muted); }
-.example-box .grammar-note { margin-top: 6px; font-size: 12px; color: #1f6f6c; background: #eef7f6; padding: 6px 8px; border-radius: 4px; line-height: 1.4; }
+.single-card-viewport { width: 100%; min-height: 420px; display: flex; justify-content: center; margin-bottom: 16px; }
+.single-mode-card { width: 100%; max-width: 800px; background: white; border-radius: 16px; padding: 24px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); }
 
-/* 词汇覆盖率面板 */
-.coverage-panel { background: #eef5f4; border: 1px solid #cce0dd; padding: 16px; border-radius: 12px; margin-bottom: 25px; font-size: 14px; }
-.coverage-panel span.used { color: var(--teal); font-weight: bold; }
-.coverage-panel span.unused { color: var(--danger); font-weight: bold; }
+/* 卡片翻页导航 */
+.card-navigator { display: flex; justify-content: space-between; align-items: center; max-width: 800px; margin: 0 auto 24px auto; font-weight: 600; color: #4a5568; }
 
-/* 双篇阅读与逐句互动 */
-.reading-card { margin-top: 25px; }
+/* 3. 单词卡片结构重排 */
+.word-head-title { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid var(--line); padding-bottom: 12px; margin-bottom: 16px; }
+.term-left-group { display: flex; align-items: baseline; gap: 12px; }
+.term-text { font-size: 28px; margin: 0; color: var(--ink); }
+.phonetic-badge { color: #64748b; font-family: monospace; font-size: 16px; }
+
+.pos-tag { background: #f0fdf4; color: #15803d; border: 1px solid #bbf7d0; padding: 3px 8px; border-radius: 6px; font-size: 12px; font-weight: 600; margin-right: 8px; }
+.pos-header { margin-bottom: 10px; }
+.pos-meaning { font-size: 16px; font-weight: 600; color: #1e293b; }
+
+.example-box { background: #f8fafc; border-left: 4px solid var(--teal); padding: 12px; border-radius: 0 8px 8px 0; margin-bottom: 12px; }
+.example-box p { margin: 4px 0; font-size: 14px; line-height: 1.5; }
+.example-box .english { font-weight: 500; color: #0f172a; }
+.example-box .chinese { color: #475569; }
+
+.label-tag { font-size: 11px; background: #e2e8f0; color: #475569; padding: 2px 6px; border-radius: 4px; font-weight: bold; }
+.label-tag.alt { background: #ccfbf1; color: #0f766e; }
+
+.grammar-note { margin-top: 8px; padding-top: 8px; border-top: 1px dashed #cbd5e1; font-size: 13px; }
+.grammar-title { font-weight: bold; color: #d97706; margin-bottom: 2px; }
+.grammar-detail { color: #334155; line-height: 1.4; }
+
+.meta-section { border-top: 1px solid #f1f5f9; padding-top: 14px; margin-top: 16px; display: flex; flex-direction: column; gap: 12px; font-size: 13px; }
+
+/* 4. 短文切换 Tab 与交互 */
+.reading-swipe-container { max-width: 800px; margin: 0 auto; padding: 20px; }
+.reading-tabs { display: flex; gap: 12px; border-bottom: 2px solid #f1f5f9; margin-bottom: 16px; }
+.tab-btn { background: none; border: none; padding: 10px 16px; font-size: 15px; cursor: pointer; color: #64748b; border-bottom: 2px solid transparent; margin-bottom: -2px; transition: all 0.2s; }
+.tab-btn.active { color: var(--teal); border-bottom-color: var(--teal); font-weight: bold; }
+.tab-content.hidden { display: none; }
+
 .sentence-item { padding: 12px; border-radius: 8px; cursor: pointer; transition: 0.15s; margin-bottom: 6px; line-height: 1.7; font-size: 16px; border: 1px solid transparent; }
 .sentence-item:hover { background: #f2f7f6; border-color: var(--line); }
 .sentence-item.active { background: #e9f4f2; border-left: 4px solid var(--teal); }
 .sentence-trans { display: none; margin-top: 8px; padding: 10px; background: #fff; border-radius: 6px; font-size: 14px; color: var(--muted); border: 1px solid var(--line); line-height: 1.6; }
 .sentence-item.active .sentence-trans { display: block; }
-.interactive-word { border-bottom: 2px dotted var(--teal); color: var(--teal); font-weight: 600; cursor: pointer; padding: 0 2px; }
+
+.interactive-word { color: var(--teal); border-bottom: 1.5px dotted var(--teal); font-weight: bold; cursor: pointer; padding: 0 2px; }
 .interactive-word:hover { background: var(--amber); color: #fff; border-radius: 3px; }
 
-/* 数据管理按钮卡片 */
-.data-card .stacked-actions { display: flex; flex-direction: column; gap: 12px; }
+/* 5. 悬浮置顶/置底控件 */
+.floating-scroll-controls { position: fixed; right: 24px; bottom: 80px; display: flex; flex-direction: column; gap: 12px; z-index: 90; }
+.floating-btn { width: 44px; height: 44px; border-radius: 50%; background: #ffffff; border: 1px solid #cbd5e1; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12); font-size: 18px; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: transform 0.2s; }
+.floating-btn:active { transform: scale(0.92); }
 
-/* 适配不同机型与 iPad */
 @media (max-width: 768px) {
-  .word-masonry-grid { grid-template-columns: 1fr; }
   .app-shell { display: block; }
   .sidebar { height: auto; position: fixed; bottom: 0; top: auto; width: 100%; flex-direction: row; padding: 10px; z-index: 50; border-top: 1px solid var(--line); max-height: unset; }
   .sidebar-header { display: none; }
   nav { display: flex; width: 100%; justify-content: space-around; }
+  .deck-tools { flex-direction: column; }
 }

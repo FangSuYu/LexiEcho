@@ -10,7 +10,34 @@ const PRESETS = {
   custom: { baseUrl: "", models: [] },
 };
 
+// 词性全称与中文映射字典
+const POS_MAP = {
+  "n.": "n. | noun | 名词",
+  "v.": "v. | verb | 动词",
+  "vt.": "vt. | transitive verb | 及物动词",
+  "vi.": "vi. | intransitive verb | 不及物动词",
+  "adj.": "adj. | adjective | 形容词",
+  "adv.": "adv. | adverb | 副词",
+  "prep.": "prep. | preposition | 介词",
+  "conj.": "conj. | conjunction | 连词",
+  "pron.": "pron. | pronoun | 代词",
+  "num.": "num. | numeral | 数词",
+  "art.": "art. | article | 冠词",
+  "interj.": "interj. | interjection | 感叹词"
+};
+
+function formatPOS(posRaw = "") {
+  const clean = posRaw.trim().toLowerCase();
+  for (const key in POS_MAP) {
+    if (clean.startsWith(key) || clean === key.replace('.', '')) {
+      return POS_MAP[key];
+    }
+  }
+  return posRaw ? `${posRaw} | 词性解释` : "n. | noun | 名词";
+}
+
 let currentViewDate = new Date();
+let currentWordIndex = 0; // 当前选中的单词卡片索引
 
 const db = new Promise((resolve) => {
   const request = indexedDB.open(DB_NAME, DB_VERSION);
@@ -111,9 +138,15 @@ function generationPrompt(session) {
           ]
         }
       ],
-      "forms": "单词的时态/单复数变形",
-      "phrases": ["常用搭配1", "常用搭配2"],
-      "prepositionUsage": "核心介词搭配及其底层使用逻辑"
+      "forms": "单词的时态/单复数变形（需包含具体变形类型说明）",
+      "phrases": [
+        {
+          "phrase": "常用搭配短语",
+          "translation": "短语中文翻译",
+          "example": "包含该搭配的简单造句"
+        }
+      ],
+      "prepositionUsage": "核心介词搭配及其底层使用逻辑（列表呈现）"
     }
   ],
   "readings": {
@@ -148,7 +181,6 @@ async function generateContent(session, provider, priorSessions, apiKey) {
     { role: "user", content: prompt }
   ];
 
-  // 调用 modelClient 中的统一 callModel 方法
   const res = await callModel(provider.model, messages, { apiKey });
   const raw = res.content;
   if (!raw) throw new Error("模型返回了空内容");
@@ -164,7 +196,7 @@ function normalizeContent(data, inputWords) {
     term: word.term || inputWords[i] || "", 
     phonetic: word.phonetic || "",
     senses: (word.senses || []).map(s => ({
-      partOfSpeech: s.partOfSpeech || "n./v.",
+      partOfSpeech: s.partOfSpeech || "n.",
       meaning: s.meaning || "",
       examples: (s.examples || []).map(e => ({
         english: e.english || "",
@@ -172,8 +204,8 @@ function normalizeContent(data, inputWords) {
         grammarNote: e.grammarNote || ""
       }))
     })),
-    forms: word.forms || "无",
-    phrases: Array.isArray(word.phrases) ? word.phrases : [],
+    forms: word.forms || "暂无特殊变形",
+    phrases: Array.isArray(word.phrases) ? word.phrases.map(p => typeof p === 'string' ? { phrase: p, translation: '', example: '' } : p) : [],
     prepositionUsage: word.prepositionUsage || "",
   }));
   
@@ -279,6 +311,7 @@ async function renderNew(app) {
   });
 }
 
+// 渲染强化学习详情页
 async function renderStudy(app, id) {
   const session = await getSession(id);
   if (!session || session.status !== "ready") {
@@ -286,7 +319,8 @@ async function renderStudy(app, id) {
     return;
   }
   const { content } = session;
-  
+  currentWordIndex = 0; // 默认展示第 1 个单词
+
   const dailyTextFull = (content.readings.daily.sentences || []).map(s => s.english).join(" ").toLowerCase();
   const usedWords = [];
   const unusedWords = [];
@@ -299,101 +333,242 @@ async function renderStudy(app, id) {
   });
 
   app.innerHTML = `<section class="page study-page">
-    <header class="study-top">
+    <!-- 1. 顶部紧凑标题与信息折叠入口 -->
+    <header class="study-compact-bar card">
       <div>
-        <h1>学习强化详情 (${session.studyDate})</h1>
-        <p style="color:var(--muted); margin:4px 0;">${html(content.summary)}</p>
+        <h2 style="display:inline-block;">学习强化详情 (${session.studyDate})</h2>
+        <span class="word-count-tag">${content.words.length} 词</span>
       </div>
-      <a class="button secondary" href="#archive" style="font-size:13px; padding:8px 14px;">返回档案</a>
+      <button class="button secondary" id="btn-open-info" style="font-size:13px; padding:6px 14px;">查看摘要与档案 ℹ️</button>
     </header>
 
-    <div class="coverage-panel card">
-      <h3 style="margin:0 0 8px 0; font-size:15px; color:var(--ink);">📊 短文1 (当天词汇串联) 覆盖率检查</h3>
-      <p style="margin:4px 0;">已在短文中出现的词：<span class="used">${usedWords.length ? html(usedWords.join(', ')) : '无'}</span></p>
-      <p style="margin:4px 0;">尚未在短文中出现的词：<span class="unused">${unusedWords.length ? html(unusedWords.join(', ')) : '无（全部覆盖！）'}</span></p>
+    <!-- 弹窗：包含概览与覆盖率检查 -->
+    <div class="modal-overlay hidden" id="info-modal">
+      <div class="modal-content card">
+        <div class="modal-header">
+          <h3 style="margin:0;">学习档案与状态概览</h3>
+          <button class="modal-close" id="btn-close-modal">✕</button>
+        </div>
+        <p class="modal-summary"><strong>💡 本次核心概览：</strong><br/>${html(content.summary)}</p>
+        <div class="coverage-panel card" style="box-shadow:none;">
+          <h4 style="margin:0 0 8px 0; font-size:14px; color:var(--ink);">📊 短文1 词汇覆盖率检查</h4>
+          <p style="margin:4px 0;">已覆盖词汇：<span class="used">${usedWords.length ? html(usedWords.join(', ')) : '无'}</span></p>
+          <p style="margin:4px 0;">未覆盖词汇：<span class="unused">${unusedWords.length ? html(unusedWords.join(', ')) : '无（全部覆盖！）'}</span></p>
+        </div>
+        <div class="modal-actions">
+          <a class="button secondary" href="#archive" style="margin-right:8px;">返回档案列表</a>
+          <button class="button primary" id="btn-close-modal-2">关闭</button>
+        </div>
+      </div>
     </div>
 
+    <!-- 2. 单词搜索与快速选择器 -->
     <div class="deck-tools">
-      <input type="text" id="word-search-input" placeholder="🔍 输入词汇或拼写模糊搜索卡片..." style="max-width:400px;" />
+      <input type="text" id="word-search-input" class="word-search-input" placeholder="🔍 输入单词搜索..." />
+      <select id="word-select-dropdown" class="word-select-dropdown">
+        ${content.words.map((w, idx) => `<option value="${idx}">${idx + 1}. ${html(w.term)}</option>`).join("")}
+      </select>
     </div>
 
-    <div class="word-masonry-grid" id="word-masonry-grid">
-      ${content.words.map(w => `
-        <article class="word-card card searchable-card" id="${w.id}" data-term="${html(w.term.toLowerCase())}">
-          <div class="word-head-title">
-            <h2>${html(w.term)}</h2>
-            ${w.phonetic ? `<span class="phonetic">${html(w.phonetic)}</span>` : ''}
-          </div>
-
-          ${(w.senses && w.senses.length) ? w.senses.map(sense => `
-            <div class="pos-block">
-              <div>
-                <span class="pos-badge">${html(sense.partOfSpeech)}</span>
-                <span class="pos-meaning">${html(sense.meaning)}</span>
-              </div>
-              ${(sense.examples || []).map(ex => `
-                <div class="example-box">
-                  <p class="english">${html(ex.english)}</p>
-                  <p class="chinese">${html(ex.chinese)}</p>
-                  ${ex.grammarNote ? `<p class="grammar-note">💡 语法拆解: ${html(ex.grammarNote)}</p>` : ''}
-                </div>
-              `).join('')}
-            </div>
-          `).join('') : '<p style="color:var(--muted)">暂无分词性说明</p>'}
-
-          ${w.forms && w.forms !== "无" ? `<div class="meta-row"><strong>变形/时态:</strong> ${html(w.forms)}</div>` : ''}
-          ${w.phrases && w.phrases.length ? `<div class="meta-row"><strong>常用搭配:</strong> ${html(w.phrases.join(" / "))}</div>` : ''}
-          ${w.prepositionUsage ? `<div class="meta-row"><strong>介词及用法:</strong> ${html(w.prepositionUsage)}</div>` : ''}
-        </article>
-      `).join("")}
+    <!-- 3. 自适应单单词卡片容器 -->
+    <div class="single-card-viewport">
+      <div id="active-word-card-container" style="width:100%; display:flex; justify-content:center;">
+        ${renderSingleWordCard(content.words[0], 0, content.words.length)}
+      </div>
     </div>
 
-    <article class="card reading-card">
-      <h2 style="margin-top:0;">${html(content.readings.daily.title)}</h2>
-      <p style="font-size:13px; color:var(--muted); margin-bottom:15px;">点击任意句子查看中文翻译与深度语法；点击句子中的高亮单词可直达上方的单词卡片：</p>
-      <div class="sentences-container">
-        ${renderInteractiveSentences(content.readings.daily.sentences, content.words)}
+    <!-- 4. 上一个 / 下一个 导航控制 -->
+    <div class="card-navigator">
+      <button class="button secondary" id="btn-prev-word" disabled>◀ 上一个单词</button>
+      <span id="card-progress-text" style="font-size:14px; color:var(--muted);">1 / ${content.words.length}</span>
+      <button class="button secondary" id="btn-next-word" ${content.words.length <= 1 ? 'disabled' : ''}>下一个单词 ▶</button>
+    </div>
+
+    <!-- 5. 短文左右 Tab 切换卡片 -->
+    <article class="card reading-swipe-container">
+      <div class="reading-tabs">
+        <button class="tab-btn active" data-tab="tab-daily">${html(content.readings.daily.title)}</button>
+        <button class="tab-btn" data-tab="tab-iplusone">${html(content.readings.iPlusOne.title)}</button>
+      </div>
+      <div class="tab-content" id="tab-daily">
+        <p style="font-size:13px; color:var(--muted); margin-bottom:12px;">点击任意句子查看中文翻译与深度语法；点击高亮单词可跳转定位：</p>
+        <div class="sentences-container">
+          ${renderInteractiveSentences(content.readings.daily.sentences, content.words)}
+        </div>
+      </div>
+      <div class="tab-content hidden" id="tab-iplusone">
+        <p style="font-size:13px; color:var(--muted); margin-bottom:12px;">根据个人画像生成的进阶短文，点击句子展开分析：</p>
+        <div class="sentences-container">
+          ${renderInteractiveSentences(content.readings.iPlusOne.sentences, content.words)}
+        </div>
       </div>
     </article>
 
-    <article class="card reading-card">
-      <h2 style="margin-top:0;">${html(content.readings.iPlusOne.title)}</h2>
-      <p style="font-size:13px; color:var(--muted); margin-bottom:15px;">根据个人学习画像生成的进阶短文，点击句子展开分析：</p>
-      <div class="sentences-container">
-        ${renderInteractiveSentences(content.readings.iPlusOne.sentences, content.words)}
-      </div>
-    </article>
+    <!-- 6. 悬浮速滑控件（返回顶部 / 跳转底部） -->
+    <div class="floating-scroll-controls">
+      <button class="floating-btn" id="btn-scroll-top" title="返回顶部">▲</button>
+      <button class="floating-btn" id="btn-scroll-bottom" title="跳转底部">▼</button>
+    </div>
   </section>`;
 
+  // 事件绑定逻辑
+  const modal = app.querySelector("#info-modal");
+  app.querySelector("#btn-open-info").addEventListener("click", () => modal.classList.remove("hidden"));
+  app.querySelector("#btn-close-modal").addEventListener("click", () => modal.classList.add("hidden"));
+  app.querySelector("#btn-close-modal-2").addEventListener("click", () => modal.classList.add("hidden"));
+
+  const dropdown = app.querySelector("#word-select-dropdown");
   const searchInput = app.querySelector("#word-search-input");
-  const cards = app.querySelectorAll(".searchable-card");
+
+  function updateCard(index) {
+    if (index < 0 || index >= content.words.length) return;
+    currentWordIndex = index;
+    dropdown.value = index;
+    app.querySelector("#card-progress-text").textContent = `${index + 1} / ${content.words.length}`;
+    app.querySelector("#active-word-card-container").innerHTML = renderSingleWordCard(content.words[index], index, content.words.length);
+    app.querySelector("#btn-prev-word").disabled = (index === 0);
+    app.querySelector("#btn-next-word").disabled = (index === content.words.length - 1);
+    bindCardEvents();
+  }
+
+  dropdown.addEventListener("change", (e) => updateCard(parseInt(e.target.value, 10)));
+  app.querySelector("#btn-prev-word").addEventListener("click", () => updateCard(currentWordIndex - 1));
+  app.querySelector("#btn-next-word").addEventListener("click", () => updateCard(currentWordIndex + 1));
+
+  // 搜索自动选中最佳匹配
   searchInput.addEventListener("input", (e) => {
     const query = e.target.value.trim().toLowerCase();
-    cards.forEach(c => {
-      const term = c.dataset.term;
-      c.style.display = (!query || term.includes(query)) ? "flex" : "none";
+    if (!query) return;
+    const matchIdx = content.words.findIndex(w => w.term.toLowerCase().includes(query));
+    if (matchIdx !== -1 && matchIdx !== currentWordIndex) {
+      updateCard(matchIdx);
+    }
+  });
+
+  // 短文 Tab 切换事件
+  app.querySelectorAll(".tab-btn").forEach(btn => {
+    btn.addEventListener("click", (e) => {
+      app.querySelectorAll(".tab-btn").forEach(b => b.classList.remove("active"));
+      app.querySelectorAll(".tab-content").forEach(c => c.classList.add("hidden"));
+      e.target.classList.add("active");
+      app.querySelector(`#${e.target.dataset.tab}`).classList.remove("hidden");
     });
   });
 
+  // 交互例句与高亮词点击事件
   app.querySelectorAll(".sentence-item").forEach(item => {
     item.addEventListener("click", (e) => {
       if (e.target.classList.contains("interactive-word")) {
         const targetId = e.target.dataset.targetId;
-        const cardEl = app.querySelector(`#${targetId}`);
-        if (cardEl) {
+        const targetIdx = content.words.findIndex(w => w.id === targetId);
+        if (targetIdx !== -1) {
+          updateCard(targetIdx);
+          const cardEl = app.querySelector("#active-word-card-container");
           cardEl.scrollIntoView({ behavior: "smooth", block: "center" });
-          cardEl.style.transform = "scale(1.03)";
-          cardEl.style.borderColor = "var(--teal)";
-          setTimeout(() => {
-            cardEl.style.transform = "none";
-            cardEl.style.borderColor = "var(--line)";
-          }, 800);
         }
         return;
       }
       item.classList.toggle("active");
     });
   });
+
+  // 悬浮置顶/置底事件
+  app.querySelector("#btn-scroll-top").addEventListener("click", () => window.scrollTo({ top: 0, behavior: "smooth" }));
+  app.querySelector("#btn-scroll-bottom").addEventListener("click", () => window.scrollTo({ top: document.body.scrollHeight, behavior: "smooth" }));
+
+  function bindCardEvents() {
+    const saveBtn = app.querySelector("#btn-save-card-img");
+    if (saveBtn) {
+      saveBtn.addEventListener("click", () => {
+        const cardTarget = app.querySelector("#export-word-card");
+        if (typeof html2canvas === "undefined") {
+          return toast("截图库正在加载中，请稍后重试...");
+        }
+        toast("正在生成图片，请稍候...");
+        html2canvas(cardTarget, { backgroundColor: "#ffffff", scale: 2 }).then(canvas => {
+          const link = document.createElement('a');
+          link.download = `LexiEcho-${content.words[currentWordIndex].term}.png`;
+          link.href = canvas.toDataURL("image/png");
+          link.click();
+          toast("图片保存成功！");
+        }).catch(err => {
+          toast("生成图片失败: " + err.message);
+        });
+      });
+    }
+  }
+
+  bindCardEvents();
+}
+
+// 渲染单个单词卡片 HTML
+function renderSingleWordCard(w, index, total) {
+  return `
+    <article class="single-mode-card card" id="export-word-card">
+      <div class="word-head-title">
+        <div class="term-left-group">
+          <h2 class="term-text">${html(w.term)}</h2>
+          ${w.phonetic ? `<span class="phonetic-badge">${html(w.phonetic)}</span>` : ''}
+        </div>
+        <div>
+          <button class="button secondary" id="btn-save-card-img" style="font-size:12px; padding:4px 10px; margin-right:8px;">📷 保存图片</button>
+          <span style="font-size:12px; color:var(--muted); font-weight:bold;">#${index + 1}/${total}</span>
+        </div>
+      </div>
+
+      <!-- 词性与释义列表 -->
+      ${(w.senses && w.senses.length) ? w.senses.map(sense => `
+        <div class="pos-block-item" style="margin-bottom:16px;">
+          <div class="pos-header">
+            <span class="pos-tag">${html(formatPOS(sense.partOfSpeech))}</span>
+            <span class="pos-meaning">${html(sense.meaning)}</span>
+          </div>
+          ${(sense.examples || []).map(ex => `
+            <div class="example-box">
+              <p><span class="label-tag">英文例句</span> <span class="english">${html(ex.english)}</span></p>
+              <p><span class="label-tag alt">中文翻译</span> <span class="chinese">${html(ex.chinese)}</span></p>
+              ${ex.grammarNote ? `
+                <div class="grammar-note">
+                  <div class="grammar-title">💡 语法与结构拆解：</div>
+                  <div class="grammar-detail">${html(ex.grammarNote)}</div>
+                </div>
+              ` : ''}
+            </div>
+          `).join('')}
+        </div>
+      `).join('') : '<p style="color:var(--muted)">暂无释义与表达</p>'}
+
+      <!-- 变形 / 时态 -->
+      <div class="meta-section">
+        <div><strong>📌 变形 / 时态:</strong> ${html(w.forms)}</div>
+        
+        <!-- 常用搭配 (含造句) -->
+        <div>
+          <strong>🔗 常用搭配:</strong>
+          ${w.phrases && w.phrases.length ? `
+            <div style="display:flex; flex-direction:column; gap:8px; margin-top:6px;">
+              ${w.phrases.map(p => `
+                <div style="background:#f8fafc; padding:8px 12px; border-radius:6px; border:1px solid #e2e8f0;">
+                  <div style="font-weight:600; color:var(--teal);">${html(p.phrase || p)} ${p.translation ? `<span style="color:var(--muted); font-weight:normal;">— ${html(p.translation)}</span>` : ''}</div>
+                  ${p.example ? `<div style="font-size:12px; color:#475569; margin-top:2px;">例: ${html(p.example)}</div>` : ''}
+                </div>
+              `).join('')}
+            </div>
+          ` : '<span style="color:var(--muted)"> 暂无常用搭配</span>'}
+        </div>
+
+        <!-- 介词及用法 -->
+        <div>
+          <strong>🎯 介词及用法:</strong>
+          ${w.prepositionUsage ? `
+            <div style="background:#f0fdf4; border-left:3px solid #22c55e; padding:8px 12px; margin-top:6px; border-radius:0 6px 6px 0; font-size:13px; line-height:1.6; color:#15803d;">
+              ${html(w.prepositionUsage)}
+            </div>
+          ` : '<span style="color:var(--muted)"> 暂无特定介词搭配</span>'}
+        </div>
+      </div>
+    </article>
+  `;
 }
 
 function renderInteractiveSentences(sentences = [], words = []) {
@@ -405,7 +580,7 @@ function renderInteractiveSentences(sentences = [], words = []) {
     sortedWords.forEach(w => {
       const termEscaped = w.term.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
       const regex = new RegExp(`\\b(${termEscaped})\\b`, "gi");
-      htmlText = htmlText.replace(regex, `<span class="interactive-word" data-target-id="${w.id}" title="点击定位到该词卡片">$1</span>`);
+      htmlText = htmlText.replace(regex, `<span class="interactive-word" data-target-id="${w.id}" title="点击跳转至词汇卡片">$1</span>`);
     });
 
     return `
