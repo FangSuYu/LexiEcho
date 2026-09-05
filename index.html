@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#17324d" />
+    <title>词境回声 · LexiEcho</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="sidebar" aria-label="主导航">
+        <a class="brand" href="#home" data-route="home">
+          <img src="assets/brand/logo/lexiecho-logo-transparent.png" alt="LexiEcho 标志" />
+          <span><strong>词境回声</strong><small>LexiEcho</small></span>
+        </a>
+        <nav>
+          <a href="#home" data-route="home" class="nav-link active">概览</a>
+          <a href="#new" data-route="new" class="nav-link">创建今日学习</a>
+          <a href="#archive" data-route="archive" class="nav-link">学习档案</a>
+          <a href="#settings" data-route="settings" class="nav-link">模型与数据</a>
+        </nav>
+        <div class="sidebar-note">
+          <strong>本地优先</strong>
+          <p>学习记录保存在当前浏览器。API Key 不会被导出。</p>
+        </div>
+      </aside>
+
+      <main id="app" tabindex="-1"></main>
+    </div>
+
+    <template id="home-template">
+      <section class="page hero-page">
+        <div class="hero-copy">
+          <p class="eyebrow">LOCAL-FIRST CONTEXT LEARNING</p>
+          <h1>让背过的单词，<br />在语境里留下回声。</h1>
+          <p class="lead">导入今天已学的词，把它们放进简单、自然、能反复遇见的例句和阅读里。</p>
+          <div class="actions">
+            <a class="button primary" href="#new">创建今日学习</a>
+            <a class="button secondary" href="#archive">查看学习档案</a>
+          </div>
+        </div>
+        <div class="hero-card card">
+          <div class="card-label">你的学习方式</div>
+          <ol class="path-list">
+            <li><span>01</span>在背词 App 学完今日单词</li>
+            <li><span>02</span>在这里导入词表，生成语境内容</li>
+            <li><span>03</span>标注难点，慢慢长出个人难度画像</li>
+          </ol>
+        </div>
+      </section>
+      <section class="page compact-section">
+        <div class="section-heading"><div><p class="eyebrow">RECENT SESSIONS</p><h2>最近的学习</h2></div></div>
+        <div id="recent-sessions" class="session-grid"></div>
+      </section>
+    </template>
+
+    <template id="new-template">
+      <section class="page page-header">
+        <p class="eyebrow">NEW STUDY</p>
+        <h1>创建今日学习</h1>
+        <p>词表可不限数量。每个词会有独立强化内容；短文则优先追求自然连贯，而非生硬塞词。</p>
+      </section>
+      <section class="page two-columns form-layout">
+        <form id="new-study-form" class="card form-card">
+          <label>学习日期<input id="study-date" type="date" required /></label>
+          <label>今日词表
+            <textarea id="word-list" rows="12" placeholder="建议每行一个单词或短语，例如：&#10;prove&#10;identify&#10;be responsible for"></textarea>
+            <small>也可用逗号、分号分隔。可只上传截图；模型会先从截图中提取词表。请先在背词 App 完成新词学习，再导入这里进行强化。</small>
+          </label>
+          <label>导入词表截图（可选）
+            <input id="word-images" type="file" accept="image/*" multiple />
+            <small>只有在所选模型支持视觉输入时才会随请求发送；图片只保留在本次生成过程，不存入学习档案。</small>
+          </label>
+          <div id="image-preview" class="image-preview" aria-live="polite"></div>
+          <label>本次偏好或背景（可选）
+            <textarea id="session-note" rows="4" placeholder="例如：今天想要与校园、日常购物有关的场景；我还不理解介词。"></textarea>
+          </label>
+          <button class="button primary wide" type="submit">生成语境强化内容</button>
+        </form>
+        <aside class="card guide-card">
+          <p class="eyebrow">WHAT YOU WILL GET</p>
+          <h2>本次生成包括</h2>
+          <ul class="check-list">
+            <li>每个词的含义、搭配、生活化例句和必要语法说明</li>
+            <li>一篇尽量串联当天词汇的阅读</li>
+            <li>一篇根据你的学习画像生成的 i+1 阅读</li>
+            <li>可保存的难度反馈与个人备注</li>
+          </ul>
+          <div class="callout">首次使用前，请到“模型与数据”配置一个支持浏览器直连的模型 API Key。</div>
+        </aside>
+      </section>
+    </template>
+
+    <template id="archive-template">
+      <section class="page page-header"><p class="eyebrow">ARCHIVE</p><h1>学习档案</h1><p>所有记录仅保存在当前浏览器，可在“模型与数据”中导出备份。</p></section>
+      <section class="page"><div id="archive-list" class="archive-list"></div></section>
+    </template>
+
+    <template id="settings-template">
+      <section class="page page-header"><p class="eyebrow">SETTINGS</p><h1>模型与数据</h1><p>API Key 只会从你的浏览器发送到所选模型供应商，不会写入导出的学习档案。</p></section>
+      <section class="page two-columns settings-layout">
+        <form id="provider-form" class="card form-card">
+          <h2>模型配置</h2>
+          <label>供应商预设
+            <select id="provider-preset">
+              <option value="deepseek">DeepSeek（视觉识别）</option>
+              <option value="kimi">Kimi K3（视觉识别）</option>
+              <option value="custom">自定义 OpenAI 兼容接口</option>
+            </select>
+          </label>
+          <label>API Base URL<input id="provider-url" type="url" required placeholder="例如：https://api.moonshot.cn/v1" /></label>
+          <label>模型名称<input id="provider-model" type="text" required /></label>
+          <label>API Key<input id="provider-key" type="password" autocomplete="off" placeholder="仅保存于本浏览器" /></label>
+          <label class="checkbox-line"><input id="remember-key" type="checkbox" />仅在此设备记住 API Key <span>不建议在公共设备启用</span></label>
+          <label class="checkbox-line"><input id="vision-enabled" type="checkbox" />此模型支持图片输入</label>
+          <button type="submit" class="button primary wide">保存模型配置</button>
+          <p id="provider-status" class="form-status" role="status"></p>
+        </form>
+        <section class="card data-card">
+          <h2>学习档案</h2>
+          <p>导出文件不包含 API Key 和尚未确认的原始截图。</p>
+          <div class="stacked-actions">
+            <button id="export-data" type="button" class="button secondary">导出全部学习档案</button>
+            <label class="button secondary file-button">导入学习档案<input id="import-data" type="file" accept="application/json,.json" /></label>
+            <button id="clear-data" type="button" class="text-button danger">清空本浏览器的学习档案</button>
+          </div>
+          <p id="data-status" class="form-status" role="status"></p>
+        </section>
+      </section>
+    </template>
+
+    <script src="app.js"></script>
+  </body>
+</html>

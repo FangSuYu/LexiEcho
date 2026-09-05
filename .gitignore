@@ -1,0 +1,9 @@
+# 本地需求讨论文档与个人学习资料不上传
+Doc/
+doc/
+assets/Screenshot_*
+
+# 系统与编辑器文件
+.DS_Store
+Thumbs.db
+.vscode/
