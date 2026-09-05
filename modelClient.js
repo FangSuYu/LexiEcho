@@ -1,4 +1,14 @@
-  // modelClient.js
+// modelClient.js
+
+// 各模型最大输出 token 上限（根据官方文档）
+const MODEL_MAX_TOKENS = {
+  'deepseek-v4-flash': 384000,      // 384K
+  'deepseek-v4-pro': 384000,        // 384K
+  'kimi-k2.6': 262144,              // 256K
+  'kimi-k2.7-code': 262144,         // 256K
+  'kimi-k2.7-code-highspeed': 262144, // 256K
+  'kimi-k3': 1000000                // 1M
+};
 
 /**
  * 统一的模型请求接口
@@ -10,13 +20,16 @@ async function callModel(modelName, messages, options = {}) {
   const deepseekModels = ['deepseek-v4-flash', 'deepseek-v4-pro'];
   const kimiStandardModels = ['kimi-k2.6', 'kimi-k2.7-code', 'kimi-k2.7-code-highspeed'];
   
+  // 获取该模型的最大 token 上限，若用户传了 options.max_tokens 则优先使用用户的
+  const maxTokens = options.max_tokens || MODEL_MAX_TOKENS[modelName] || 4096;
+
   // 1. DeepSeek 系列处理
   if (deepseekModels.includes(modelName)) {
     const apiKey = options.apiKey || process.env.DEEPSEEK_API_KEY;
     const body = {
       model: modelName,
       messages: messages,
-      max_tokens: options.max_tokens || (modelName === 'deepseek-v4-pro' ? 2048 : 1024),
+      max_tokens: maxTokens,
       temperature: options.temperature ?? 0.7,
       top_p: options.top_p ?? 1.0,
       stream: options.stream ?? false,
@@ -48,7 +61,7 @@ async function callModel(modelName, messages, options = {}) {
     const body = {
       model: 'kimi-k3',
       messages: messages,
-      max_tokens: options.max_tokens || 2048,
+      max_tokens: maxTokens,
       reasoning_effort: options.reasoning_effort || 'high',
       stream: options.stream ?? false
     };
@@ -78,7 +91,7 @@ async function callModel(modelName, messages, options = {}) {
     const body = {
       model: modelName,
       messages: messages,
-      max_tokens: options.max_tokens || 1024,
+      max_tokens: maxTokens,
       temperature: 1, // K2.6/K2.7 强制要求为 1
       stream: options.stream ?? false
     };
