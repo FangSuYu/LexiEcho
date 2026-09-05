@@ -12,7 +12,6 @@ const PRESETS = {
 
 let currentViewDate = new Date();
 
-// 基础工具与存储
 const db = new Promise((resolve) => {
   const request = indexedDB.open(DB_NAME, DB_VERSION);
   request.onupgradeneeded = () => {
@@ -81,29 +80,25 @@ function toast(message) {
   setTimeout(() => element.remove(), 2500);
 }
 
-// 核心大模型生成逻辑恢复
 function normalizeBaseUrl(value) {
   return String(value || "").trim().replace(/\/+$/, "").replace(/\/chat\/completions$/i, "");
 }
 
-function buildLearnerProfile(sessions) {
-  return { level: "基础较弱，优先使用高频、日常、短句表达" };
-}
-
-function generationPrompt(session, profile) {
+// 扩充后支持详细语法、时态、短语与双篇阅读逐句解析的 Prompt
+function generationPrompt(session) {
   const sourceWords = session.words.join(", ");
-  return `你是 LexiEcho 语境强化内容设计师。用户已学过以下词汇，请将其放入简单自然日常的语境。\n\n词表：${sourceWords}\n备注：${session.note || "无"}\n\n请严格只返回可解析的 JSON，不能有 Markdown 或额外说明。结构：\n{\n  "summary":"本次简短建议",\n  "words":[{\n    "term":"原词", "partOfSpeech":"词性", "meaning":"中文义",\n    "examples":[{"english":"简单英文例句", "chinese":"准确翻译"}]\n  }],\n  "readings":{\n    "daily":{"title":"短文标题", "content":"英文短文", "translation":"中文译文", "difficultyNote":"难度说明"},\n    "iPlusOne":{"title":"i+1阅读标题", "content":"短文", "translation":"译文", "difficultyNote":"说明"}\n  }\n}`;
+  return `你是高级英语深度学习与语境强化系统。用户提供了以下今日词表，请生成详尽、高质量的强化数据。\n\n词表：${sourceWords}\n备注：${session.note || "无"}\n\n请严格仅返回纯 JSON，不包含 Markdown 标记或其他任何额外说明。JSON 格式结构如下：\n{\n  "summary": "本次学习核心方向概括",\n  "words": [\n    {\n      "term": "单词/短语原词",\n      "partOfSpeech": "词性缩写，如 n. / v. / adj.",\n      "meaning": "准确中文释义",\n      "forms": "不同时态/变形形式（如过去式、复数等，若无填无）",\n      "phrases": ["常用短语搭配1", "搭配2"],\n      "prepositionUsage": "介词搭配及其底层使用逻辑说明（若适用）",\n      "examples": [\n        {\n          "english": "经典英文例句",\n          "chinese": "中文翻译",\n          "grammarNote": "该句子的核心语法拆解与为何如此使用的解析"\n        }\n      ]\n    }\n  ],\n  "readings": {\n    "daily": {\n      "title": "短文1：当天词汇串联实战",\n      "sentences": [\n        {\n          "english": "英文句子内容...",\n          "chinese": "对应的中文翻译...",\n          "explanation": "本句语法结构、短语应用与介词考点详细解释"\n        }\n      ]\n    },\n    "iPlusOne": {\n      "title": "短文2：i+1 进阶拓展阅读",\n      "sentences": [\n        {\n          "english": "英文句子内容...",\n          "chinese": "对应的中文翻译...",\n          "explanation": "本句语法与核心考点详细解释"\n        }\n      ]\n    }\n  }\n}`;
 }
 
 async function generateContent(session, provider, priorSessions, apiKey) {
-  const prompt = generationPrompt(session, buildLearnerProfile(priorSessions));
+  const prompt = generationPrompt(session);
   const bodyParams = {
     model: provider.model,
     messages: [
-      { role: "system", content: "你必须输出严格、有效的 JSON。" },
+      { role: "system", content: "你必须输出严格、有效的 JSON。不要包含任何 markdown 代码块符号。" },
       { role: "user", content: prompt }
     ],
-    response_format: provider.preset === "kimi" ? { type: "json_object" } : { type: "json_object" }
+    response_format: { type: "json_object" }
   };
   
   const response = await fetch(`${normalizeBaseUrl(provider.baseUrl)}/chat/completions`, {
@@ -121,19 +116,42 @@ async function generateContent(session, provider, priorSessions, apiKey) {
   const raw = payload.choices?.[0]?.message?.content;
   if (!raw) throw new Error("模型返回了空内容");
   
-  const parsed = JSON.parse(raw.replace(/^```json\s*|\s*```$/g, "").trim());
+  const cleanJson = raw.replace(/^```json\s*|\s*```$/g, "").trim();
+  const parsed = JSON.parse(cleanJson);
   return normalizeContent(parsed, session.words);
 }
 
 function normalizeContent(data, inputWords) {
   const words = (data.words || []).map((word, i) => ({
-    id: `word-${i}`, term: word.term || inputWords[i], partOfSpeech: word.partOfSpeech || "", meaning: word.meaning || "",
-    examples: (word.examples || []).map(e => ({ english: e.english || "", chinese: e.chinese || "" }))
+    id: `word-${i}`, 
+    term: word.term || inputWords[i] || "", 
+    partOfSpeech: word.partOfSpeech || "", 
+    meaning: word.meaning || "",
+    forms: word.forms || "无",
+    phrases: Array.isArray(word.phrases) ? word.phrases : [],
+    prepositionUsage: word.prepositionUsage || "",
+    examples: (word.examples || []).map(e => ({ english: e.english || "", chinese: e.chinese || "", grammarNote: e.grammarNote || "" }))
   }));
-  return { summary: data.summary || "", words, readings: data.readings || { daily: {}, iPlusOne: {} } };
+  
+  const formatReadings = (section) => ({
+    title: section?.title || "阅读文章",
+    sentences: (section?.sentences || []).map(s => ({
+      english: s.english || "",
+      chinese: s.chinese || "",
+      explanation: s.explanation || ""
+    }))
+  });
+
+  return { 
+    summary: data.summary || "", 
+    words, 
+    readings: {
+      daily: formatReadings(data.readings?.daily),
+      iPlusOne: formatReadings(data.readings?.iPlusOne)
+    } 
+  };
 }
 
-// 页面渲染控制
 async function render() {
   const app = document.getElementById("app");
   const route = location.hash.slice(1) || "home";
@@ -217,7 +235,7 @@ async function renderNew(app) {
   });
 }
 
-// 恢复 renderStudy
+// 修复点击单词跳回主页的 Bug，并实现左右/上下滑动卡片、模糊搜索、双篇阅读逐句互动、词汇覆盖率统计
 async function renderStudy(app, id) {
   const session = await getSession(id);
   if (!session || session.status !== "ready") {
@@ -225,28 +243,158 @@ async function renderStudy(app, id) {
     return;
   }
   const { content } = session;
+  
+  // 计算短文1中哪些原词被用到，哪些没被用到
+  const dailyTextFull = (content.readings.daily.sentences || []).map(s => s.english).join(" ").toLowerCase();
+  const usedWords = [];
+  const unusedWords = [];
+  content.words.forEach(w => {
+    const termLower = w.term.toLowerCase();
+    if (dailyTextFull.includes(termLower)) {
+      usedWords.push(w.term);
+    } else {
+      unusedWords.push(w.term);
+    }
+  });
+
   app.innerHTML = `<section class="page study-page">
     <header class="study-top">
-      <div><h1>今日强化</h1><p>${html(content.summary)}</p></div>
+      <div>
+        <h1>学习详情 (${session.studyDate})</h1>
+        <p>${html(content.summary)}</p>
+      </div>
+      <a class="button secondary" href="#archive" style="font-size:13px; padding:8px 14px;">返回档案</a>
     </header>
-    <nav class="word-nav">${content.words.map(w => `<a class="word-chip" href="#${w.id}">${html(w.term)}</a>`).join("")}</nav>
-    ${content.words.map(w => `
-      <article class="word-card card" id="${w.id}">
-        <header class="word-heading"><h2>${html(w.term)}</h2><span class="pos">${html(w.partOfSpeech)}</span></header>
-        <p class="meaning">${html(w.meaning)}</p>
-        <div class="examples">
-          ${w.examples.map(ex => `<div class="example"><p class="english">${html(ex.english)}</p><p class="chinese">${html(ex.chinese)}</p></div>`).join("")}
-        </div>
-      </article>
-    `).join("")}
-    <article class="card reading-card" style="margin-top:20px;">
-      <h2>当天词汇串联短文</h2>
-      <div class="reading-text">${html(content.readings.daily.content)}</div>
-      <p style="color:var(--muted); font-size:14px; margin-top:15px;">${html(content.readings.daily.translation)}</p>
+
+    <!-- 词汇覆盖率面板 -->
+    <div class="coverage-panel card" style="padding:16px; margin-bottom:20px;">
+      <h3 style="margin:0 0 8px 0; font-size:15px;">📊 短文1词汇串联覆盖检查</h3>
+      <p style="margin:4px 0;">已在短文中串联使用的词：<span class="used">${usedWords.length ? html(usedWords.join(', ')) : '无'}</span></p>
+      <p style="margin:4px 0;">未被短文1直接覆盖的词：<span class="unused">${unusedWords.length ? html(unusedWords.join(', ')) : '无（全员覆盖！）'}</span></p>
+    </div>
+
+    <!-- 搜索过滤与卡片滑动容器 -->
+    <div class="deck-tools">
+      <input type="text" id="word-search-input" placeholder="🔍 输入关键词模糊搜索卡片..." />
+    </div>
+
+    <div class="word-carousel" id="word-carousel">
+      ${content.words.map(w => `
+        <article class="word-card card searchable-card" id="${w.id}" data-term="${html(w.term.toLowerCase())}">
+          <header class="word-heading">
+            <h2>${html(w.term)}</h2>
+            <span class="pos">${html(w.partOfSpeech)}</span>
+          </header>
+          <p class="meaning" style="font-size:16px; font-weight:600; margin:6px 0;">${html(w.meaning)}</p>
+          <div class="meta-section"><strong>形态/时态:</strong> ${html(w.forms)}</div>
+          <div class="meta-section"><strong>常用短语:</strong> ${html(w.phrases.join(" / "))}</div>
+          ${w.prepositionUsage ? `<div class="meta-section"><strong>介词及用法逻辑:</strong> ${html(w.prepositionUsage)}</div>` : ''}
+          <div class="examples-list" style="margin-top:12px;">
+            ${w.examples.map(ex => `
+              <div class="example-box">
+                <p class="english">${html(ex.english)}</p>
+                <p class="chinese">${html(ex.chinese)}</p>
+                ${ex.grammarNote ? `<p class="grammar-note">💡 语法解析: ${html(ex.grammarNote)}</p>` : ''}
+              </div>
+            `).join("")}
+          </div>
+        </article>
+      `).join("")}
+    </div>
+
+    <!-- 短文1：当天词汇串联短文 -->
+    <article class="card reading-card">
+      <h2 style="margin-top:0;">${html(content.readings.daily.title)}</h2>
+      <p style="font-size:13px; color:var(--muted); margin-bottom:15px;">点击任意英文句子可展开中译与深度解析；点击句中的高亮核心词汇可直达上方卡片！</p>
+      <div class="sentences-container">
+        ${renderInteractiveSentences(content.readings.daily.sentences, content.words)}
+      </div>
+    </article>
+
+    <!-- 短文2：i+1 进阶拓展阅读 -->
+    <article class="card reading-card" style="margin-top:25px;">
+      <h2 style="margin-top:0;">${html(content.readings.iPlusOne.title)}</h2>
+      <p style="font-size:13px; color:var(--muted); margin-bottom:15px;">点击任意句子查看译文与语法要点：</p>
+      <div class="sentences-container">
+        ${renderInteractiveSentences(content.readings.iPlusOne.sentences, content.words)}
+      </div>
     </article>
   </section>`;
+
+  // 绑定搜索与卡片滚动定位逻辑
+  const searchInput = app.querySelector("#word-search-input");
+  const carousel = app.querySelector("#word-carousel");
+  const cards = app.querySelectorAll(".searchable-card");
+
+  searchInput.addEventListener("input", (e) => {
+    const query = e.target.value.trim().toLowerCase();
+    if (!query) {
+      cards.forEach(c => c.style.display = "block");
+      return;
+    }
+    let targetCard = null;
+    cards.forEach(c => {
+      const term = c.dataset.term;
+      if (term.includes(query)) {
+        c.style.display = "block";
+        if (!targetCard) targetCard = c;
+      } else {
+        c.style.display = "none";
+      }
+    });
+    if (targetCard) {
+      targetCard.scrollIntoView({ behavior: "smooth", inline: "center", block: "nearest" });
+    }
+  });
+
+  // 绑定逐句点击展开交互
+  app.querySelectorAll(".sentence-item").forEach(item => {
+    item.addEventListener("click", (e) => {
+      // 如果点击的是高亮单词，则不触发整句折叠展开，而是滚动定位到对应卡片
+      if (e.target.classList.contains("interactive-word")) {
+        const targetId = e.target.dataset.targetId;
+        const cardEl = app.querySelector(`#${targetId}`);
+        if (cardEl) {
+          cardEl.scrollIntoView({ behavior: "smooth", inline: "center", block: "nearest" });
+          cardEl.style.transform = "scale(1.02)";
+          setTimeout(() => cardEl.style.transform = "none", 400);
+        }
+        return;
+      }
+      item.classList.toggle("active");
+    });
+  });
 }
 
+// 渲染带有词汇高亮与点击穿透的句子
+function renderInteractiveSentences(sentences = [], words = []) {
+  if (!sentences.length) return `<p style="color:var(--muted)">暂无文章内容</p>`;
+  
+  // 按词汇长度降序排列，避免短词优先误匹配
+  const sortedWords = [...words].sort((a, b) => b.term.length - a.term.length);
+
+  return sentences.map(s => {
+    let htmlText = html(s.english);
+    // 将句子中的目标单词替换为可交互、可高亮的 span 标签
+    sortedWords.forEach(w => {
+      const termEscaped = w.term.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
+      const regex = new RegExp(`\\b(${termEscaped})\\b`, "gi");
+      htmlText = htmlText.replace(regex, `<span class="interactive-word" data-target-id="${w.id}" title="点击查看单词卡片">$1</span>`);
+    });
+
+    return `
+      <div class="sentence-item">
+        <div class="sentence-en">${htmlText}</div>
+        <div class="sentence-trans">
+          <strong>中文翻译：</strong>${html(s.chinese)}<br/>
+          <strong style="color:var(--teal);">语法与短语解析：</strong>${html(s.explanation)}
+        </div>
+      </div>
+    `;
+  }).join("");
+}
+
+// 档案页面：实现双击日期查看简略信息
 async function renderArchive(app) {
   app.append(document.getElementById("archive-template").content.cloneNode(true));
   const sessions = await listSessions();
@@ -262,30 +410,48 @@ async function renderArchive(app) {
     const daysInMonth = new Date(year, month + 1, 0).getDate();
     
     for (let i = 0; i < firstDay; i++) grid.appendChild(Object.assign(document.createElement("div"), { className: "calendar-day empty" }));
+    
     for (let day = 1; day <= daysInMonth; day++) {
       const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
       const cell = document.createElement("div");
       cell.className = "calendar-day";
       cell.textContent = day;
+      
       if (sessionMap.has(dateStr)) {
         cell.classList.add("has-session");
-        let pressTimer;
-        cell.addEventListener("pointerdown", () => {
-          pressTimer = setTimeout(() => { toast(`${dateStr}: 已学习 ${sessionMap.get(dateStr).words?.length || 0} 词`); pressTimer = null; }, 600);
+        const sData = sessionMap.get(dateStr);
+        
+        // 单击直接进入详情
+        cell.addEventListener("click", () => {
+          location.hash = `#study/${sData.id}`;
         });
-        cell.addEventListener("pointerup", () => {
-          if (pressTimer) { clearTimeout(pressTimer); location.hash = `#study/${sessionMap.get(dateStr).id}`; }
+        
+        // 双击查看简略信息 (兼容双击事件与双击时间戳判断)
+        let lastClickTime = 0;
+        cell.addEventListener("touchend", (e) => {
+          const currentTime = new Date().getTime();
+          if (currentTime - lastClickTime < 300) {
+            e.preventDefault();
+            toast(`📅 ${dateStr} 简略：已学习 ${sData.words?.length || 0} 个单词`);
+          }
+          lastClickTime = currentTime;
         });
-        cell.addEventListener("pointerleave", () => clearTimeout(pressTimer));
+        
+        cell.addEventListener("dblclick", (e) => {
+          e.stopPropagation();
+          toast(`📅 ${dateStr} 简略：已学习 ${sData.words?.length || 0} 个单词`);
+        });
       }
       grid.appendChild(cell);
     }
   }
+  
   app.querySelector("#prev-month").addEventListener("click", () => { currentViewDate.setMonth(currentViewDate.getMonth() - 1); drawCalendar(); });
   app.querySelector("#next-month").addEventListener("click", () => { currentViewDate.setMonth(currentViewDate.getMonth() + 1); drawCalendar(); });
   drawCalendar();
 }
 
+// 修复清空本地数据按钮无效问题，并新增导入功能
 async function renderSettings(app) {
   app.append(document.getElementById("settings-template").content.cloneNode(true));
   const saved = await getSetting("provider", { preset: "kimi" });
@@ -325,7 +491,6 @@ async function renderSettings(app) {
     updateModelUI(presetEl.value, config.models[0]);
   });
   
-  // 修复遗失的设置提交逻辑
   app.querySelector("#provider-form").addEventListener("submit", async (e) => {
     e.preventDefault();
     const preset = presetEl.value;
@@ -335,14 +500,72 @@ async function renderSettings(app) {
     if (keyEl.value.trim()) localStorage.setItem(API_KEY_LOCAL, keyEl.value.trim());
     toast("配置已保存，API Key 存储在设备本地。");
   });
+
+  // 导出备份
+  app.querySelector("#export-data").addEventListener("click", async () => {
+    const sessions = await listSessions();
+    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(sessions, null, 2));
+    const downloadAnchor = document.createElement("a");
+    downloadAnchor.setAttribute("href", dataStr);
+    downloadAnchor.setAttribute("download", `lexiecho_backup_${new Date().toISOString().slice(0, 10)}.json`);
+    document.body.appendChild(downloadAnchor);
+    downloadAnchor.click();
+    downloadAnchor.remove();
+    toast("学习档案备份导出成功！");
+  });
+
+  // 导入备份
+  app.querySelector("#import-data-file").addEventListener("change", async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = async (event) => {
+      try {
+        const importedSessions = JSON.parse(event.target.result);
+        if (!Array.isArray(importedSessions)) throw new Error("文件格式不正确");
+        const store = await storeTransaction(SESSION_STORE, "readwrite");
+        for (const s of importedSessions) {
+          store.put(s);
+        }
+        toast(`成功导入 ${importedSessions.length} 条学习档案！`);
+        setTimeout(() => location.hash = "#home", 1000);
+      } catch (err) {
+        toast(`导入失败: ${err.message}`);
+      }
+    };
+    reader.readAsText(file);
+  });
+
+  // 彻底修复清空本地数据按钮
+  app.querySelector("#clear-data").addEventListener("click", async () => {
+    if (!confirm("确定要清空本设备所有的学习档案吗？此操作无法撤销。")) return;
+    const database = await db;
+    const tx = database.transaction([SESSION_STORE, SETTINGS_STORE], "readwrite");
+    tx.objectStore(SESSION_STORE).clear();
+    tx.objectStore(SETTINGS_STORE).clear();
+    tx.oncomplete = () => {
+      localStorage.removeItem(API_KEY_LOCAL);
+      toast("本地数据已全部清空。");
+      setTimeout(() => location.reload(), 1000);
+    };
+    tx.onerror = () => {
+      toast("清空数据失败，请重试。");
+    };
+  });
 }
 
-// 初始化
+// 增强设备识别，完美适配 iPad Safari 与 iPad Chrome
 function detectDevice() {
   const ua = navigator.userAgent;
-  if (/Macintosh/i.test(ua) && navigator.maxTouchPoints > 1 || /iPad/i.test(ua)) document.body.classList.add('device-ipad');
-  else if (/(tablet|ipad|playbook|silk)|(android(?!.*mobi))/i.test(ua)) document.body.classList.add('device-android-tablet');
-  else if (/Mobile|Android|iP(hone|od)|IEMobile/.test(ua)) document.body.classList.add('device-mobile');
+  if (/CriOS/i.test(ua) && (/iPad/i.test(ua) || (/Macintosh/i.test(ua) && navigator.maxTouchPoints > 1))) {
+    document.body.classList.add('device-ipad-chrome');
+  } else if (/Macintosh/i.test(ua) && navigator.maxTouchPoints > 1 || /iPad/i.test(ua)) {
+    document.body.classList.add('device-ipad');
+  } else if (/(tablet|ipad|playbook|silk)|(android(?!.*mobi))/i.test(ua)) {
+    document.body.classList.add('device-android-tablet');
+  } else if (/Mobile|Android|iP(hone|od)|IEMobile/.test(ua)) {
+    document.body.classList.add('device-mobile');
+  }
 }
 
 document.getElementById('sidebar-toggle')?.addEventListener('click', () => {

@@ -31,7 +31,7 @@
       <section class="page hero-page">
         <div class="hero-copy">
           <h1>LexiEcho 英语强化工具</h1>
-          <p class="lead">导入今日词表，自动生成定制化的自然例句与阅读短文。</p>
+          <p class="lead">导入今日词表，自动生成定制化的自然例句与双篇阅读短文。</p>
           <div class="actions">
             <a class="button primary" href="#new">创建今日学习</a>
             <a class="button secondary" href="#archive">查看学习档案</a>
@@ -58,7 +58,7 @@
             <textarea id="session-note" rows="3" placeholder="例如：侧重职场交流场景"></textarea>
           </label>
           <button class="button primary wide" id="submit-btn" type="submit">
-            <span class="btn-text">生成强化内容</span>
+            <span class="btn-text">生成深度强化内容</span>
             <div class="spinner hidden"></div>
           </button>
         </form>
@@ -68,7 +68,7 @@
     <template id="archive-template">
       <section class="page page-header">
         <h1>学习档案</h1>
-        <p>长按日期查看简略，点击进入详情记录。</p>
+        <p>双击日期查看简略，点击进入详情记录。</p>
       </section>
       <section class="page">
         <div class="calendar-card card">
@@ -100,7 +100,6 @@
           </label>
           <label>接口地址<input id="provider-url" type="url" required /></label>
           <label>模型名称
-            <!-- 预设模型原生下拉框，自定义模式切换为输入框，解决 iPad 下拉位置偏移 Bug -->
             <select id="provider-model-select"></select>
             <input id="provider-model-input" type="text" style="display:none;" />
           </label>
@@ -111,6 +110,10 @@
         <section class="card data-card">
           <div class="stacked-actions">
             <button id="export-data" type="button" class="button secondary wide">导出档案备份</button>
+            <label class="button secondary wide" style="text-align:center; cursor:pointer; font-weight:600; display:inline-flex; align-items:center; justify-content:center;">
+              导入档案备份
+              <input id="import-data-file" type="file" accept=".json" style="display:none;" />
+            </label>
             <button id="clear-data" type="button" class="button danger wide">清空本地数据</button>
           </div>
         </section>

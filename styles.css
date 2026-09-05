@@ -21,7 +21,6 @@ button,input,textarea,select { font:inherit; } button { cursor:pointer; }
 nav { display:grid; gap:8px; }
 .nav-link { text-decoration:none; color:var(--muted); border-radius:10px; padding:12px; font-size:15px; white-space: nowrap; overflow: hidden; }
 .nav-link.active { background:#e9f4f1; color:var(--teal); font-weight:700; }
-/* 仅在非触屏设备应用 Hover，解决手机端需双击的问题 */
 @media (hover: hover) {
   .nav-link:hover, .icon-button:hover { background: #e9f4f1; color: var(--teal); }
 }
@@ -57,7 +56,7 @@ textarea { resize: vertical; line-height:1.6; }
 .calendar-header h2 { margin: 0; font-size: 20px; }
 .calendar-grid-header { display: grid; grid-template-columns: repeat(7, 1fr); text-align: center; font-weight: 600; color: var(--muted); margin-bottom: 10px; }
 .calendar-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 8px; }
-.calendar-day { aspect-ratio: 1; border-radius: 8px; border: 1px solid var(--line); display: flex; align-items: center; justify-content: center; font-size: 16px; cursor: pointer; transition: 0.2s; background: #faf9f5; position: relative; }
+.calendar-day { aspect-ratio: 1; border-radius: 8px; border: 1px solid var(--line); display: flex; align-items: center; justify-content: center; font-size: 16px; cursor: pointer; transition: 0.2s; background: #faf9f5; position: relative; user-select: none; }
 .calendar-day.empty { border: none; background: transparent; cursor: default; }
 .calendar-day.has-session { background: #e9f4f1; border-color: var(--teal); color: var(--teal); font-weight: bold; }
 .calendar-day:active { transform: scale(0.95); }
@@ -66,26 +65,45 @@ textarea { resize: vertical; line-height:1.6; }
 .session-card { padding:20px; text-decoration:none; color:inherit; border-radius: 12px; }
 .toast { position:fixed; left:50%; bottom:30px; transform:translateX(-50%); padding:12px 24px; border-radius:30px; background:var(--ink); color:white; font-size: 14px; z-index:100; pointer-events: none; }
 
-/* 学习详情卡片样式恢复 */
+/* 强化学习详情与互动样式 */
 .study-page { padding:40px 0 70px; }
-.study-top { display:flex; justify-content:space-between; gap:20px; align-items:flex-start; margin-bottom:30px; }
+.study-top { display:flex; justify-content:space-between; gap:20px; align-items:flex-start; margin-bottom:20px; }
 .study-top h1 { margin:4px 0; font-size:32px; }
-.word-nav { margin:20px 0; display:flex; flex-wrap:wrap; gap:8px; }
-.word-chip { border:1px solid var(--teal); color:var(--teal); padding:6px 12px; border-radius:20px; font-size:13px; text-decoration:none; }
-.word-card { margin-bottom:20px; }
-.word-heading { display:flex; align-items:baseline; gap:13px; flex-wrap:wrap; border-bottom:1px solid var(--line); padding-bottom:16px; margin-bottom:16px;}
+
+/* 搜索与卡片轮播区 */
+.deck-tools { margin-bottom: 20px; display: grid; gap: 12px; }
+.word-carousel { display: flex; gap: 16px; overflow-x: auto; scroll-snap-type: x mandatory; padding-bottom: 15px; scrollbar-width: thin; }
+.word-carousel::-webkit-scrollbar { height: 6px; }
+.word-carousel::-webkit-scrollbar-thumb { background: var(--line); border-radius: 3px; }
+.word-card { min-width: min(100%, 500px); flex: 0 0 auto; scroll-snap-align: start; }
+
+.word-heading { display:flex; align-items:baseline; gap:13px; flex-wrap:wrap; border-bottom:1px solid var(--line); padding-bottom:12px; margin-bottom:12px;}
 .word-heading h2 { margin:0; font-size:24px; }
 .pos { color:var(--teal); font-size:13px; font-weight:800; }
-.meaning { margin:10px 0; font-size:16px; }
-.example { padding:15px; background:#faf9f5; border-radius:10px; margin-bottom:10px; }
-.example .english { margin:0; font-size:16px; line-height:1.6; }
-.example .chinese { margin:7px 0 0; color:var(--muted); font-size:14px; }
-.feedback-tags { display:flex; flex-wrap:wrap; gap:8px; margin-top:10px;}
-.feedback-tag { padding:6px 12px; border:1px solid #d8e0de; background:#fff; color:#5a6874; border-radius:20px; font-size:12px; }
-.feedback-tag.selected { background:#fff1dc; border-color:#efc47d; color:#92601a; }
-.reading-text { margin-top:15px; line-height:1.8; font-size:16px; white-space:pre-line; }
+.meta-section { margin-top: 10px; font-size: 14px; color: var(--muted); }
+.meta-section strong { color: var(--ink); }
+.example-box { padding:12px; background:#faf9f5; border-radius:8px; margin-top:8px; }
+.example-box .english { margin:0; font-size:15px; line-height:1.5; color: var(--ink); }
+.example-box .chinese { margin:4px 0 0; color:var(--muted); font-size:13px; }
+.example-box .grammar-note { margin-top:6px; font-size:12px; color: var(--teal); border-top: 1px dashed var(--line); padding-top: 4px; }
 
-body.device-ipad .calendar-day, body.device-android-tablet .calendar-day { font-size: 18px; }
+/* 覆盖率分析提示 */
+.coverage-panel { background: #eef5f4; border: 1px solid #cce0dd; padding: 15px; border-radius: 10px; margin-bottom: 20px; font-size: 14px; }
+.coverage-panel span.used { color: var(--teal); font-weight: bold; }
+.coverage-panel span.unused { color: var(--danger); font-weight: bold; }
+
+/* 双篇阅读与逐句互动高亮 */
+.reading-card { margin-top: 25px; }
+.sentence-item { padding: 10px 12px; border-radius: 6px; cursor: pointer; transition: 0.15s; margin-bottom: 4px; line-height: 1.7; font-size: 16px; }
+.sentence-item:hover { background: #f0f4f3; }
+.sentence-item.active { background: #e1f0ee; border-left: 4px solid var(--teal); }
+.sentence-trans { display: none; margin-top: 6px; padding: 8px 12px; background: #fff; border-radius: 6px; font-size: 14px; color: var(--muted); border: 1px solid var(--line); }
+.sentence-item.active .sentence-trans { display: block; }
+.interactive-word { border-bottom: 1.5px dotted var(--teal); color: var(--teal); cursor: pointer; padding: 0 2px; }
+.interactive-word.highlighted { background: var(--amber); color: #fff !important; border-radius: 3px; }
+
+/* 适配 iPad Safari/Chrome 和移动端 */
+body.device-ipad .calendar-day, body.device-ipad-chrome .calendar-day, body.device-android-tablet .calendar-day { font-size: 18px; }
 body.device-mobile .app-shell { display: block; }
 body.device-mobile .sidebar { height: auto; position: fixed; bottom: 0; top: auto; width: 100%; flex-direction: row; padding: 10px; z-index: 50; border-top: 1px solid var(--line); max-height: unset; }
 body.device-mobile .sidebar-header { display: none; }
