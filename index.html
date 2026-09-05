@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
     <meta name="theme-color" content="#17324d" />
-    <title>LexiEcho</title>
+    <title>LexiEcho - 词境回声</title>
     <link rel="stylesheet" href="styles.css" />
   </head>
   <body>
@@ -30,8 +30,8 @@
     <template id="home-template">
       <section class="page hero-page">
         <div class="hero-copy">
-          <h1>LexiEcho 英语强化工具</h1>
-          <p class="lead">导入今日词表，自动生成定制化的自然例句与双篇阅读短文。</p>
+          <h1>LexiEcho 英语语境强化</h1>
+          <p class="lead">导入今日词表，生成定制化零基础友好例句与双篇深度阅读短文。</p>
           <div class="actions">
             <a class="button primary" href="#new">创建今日学习</a>
             <a class="button secondary" href="#archive">查看学习档案</a>
@@ -39,23 +39,23 @@
         </div>
       </section>
       <section class="page compact-section">
-        <div class="section-heading"><h2>最近学习</h2></div>
+        <div class="section-heading"><h2>最近学习记录</h2></div>
         <div id="recent-sessions" class="session-grid"></div>
       </section>
     </template>
 
     <template id="new-template">
       <section class="page page-header">
-        <h1>创建学习</h1>
+        <h1>创建今日学习</h1>
       </section>
       <section class="page two-columns form-layout">
         <form id="new-study-form" class="card form-card">
           <label>日期<input id="study-date" type="date" required /></label>
           <label>今日词表
-            <textarea id="word-list" rows="10" placeholder="每行一个单词或短语，例如：&#10;prove&#10;identify&#10;be responsible for"></textarea>
+            <textarea id="word-list" rows="8" placeholder="每行一个单词或短语，例如：&#10;prove&#10;identify&#10;be responsible for"></textarea>
           </label>
           <label>附加要求（可选）
-            <textarea id="session-note" rows="3" placeholder="例如：侧重职场交流场景"></textarea>
+            <textarea id="session-note" rows="3" placeholder="例如：基础较弱，希望能多一些日常生活的贴切表达"></textarea>
           </label>
           <button class="button primary wide" id="submit-btn" type="submit">
             <span class="btn-text">生成深度强化内容</span>
@@ -87,7 +87,7 @@
 
     <template id="settings-template">
       <section class="page page-header">
-        <h1>模型与数据</h1>
+        <h1>模型与数据配置</h1>
       </section>
       <section class="page two-columns settings-layout">
         <form id="provider-form" class="card form-card">
@@ -103,13 +103,13 @@
             <select id="provider-model-select"></select>
             <input id="provider-model-input" type="text" style="display:none;" />
           </label>
-          <label>API Key<input id="provider-key" type="password" placeholder="保存在本设备" /></label>
+          <label>API Key<input id="provider-key" type="password" placeholder="仅保存在本地设备" /></label>
           <button type="submit" class="button primary wide">保存配置</button>
           <p id="provider-status" class="form-status"></p>
         </form>
         <section class="card data-card">
           <div class="stacked-actions">
-            <button id="export-data" type="button" class="button secondary wide">导出档案备份</button>
+            <button id="export-data" type="button" class="button secondary wide">导出档案备份 (.json)</button>
             <label class="button secondary wide" style="text-align:center; cursor:pointer; font-weight:600; display:inline-flex; align-items:center; justify-content:center;">
               导入档案备份
               <input id="import-data-file" type="file" accept=".json" style="display:none;" />

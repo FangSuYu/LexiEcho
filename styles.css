@@ -1,6 +1,7 @@
 :root { 
   --ink:#17324d; --muted:#697786; --paper:#f8f6f0; --surface:#ffffff; 
   --line:#e5e4dc; --teal:#268f8b; --danger:#b84f4f; --amber:#efae5c;
+  --bg-subtle:#f4f3ed;
   --shadow:0 14px 45px rgba(23,50,77,.08); 
   font-family: system-ui, -apple-system, sans-serif; 
   color:var(--ink); background:var(--paper); 
@@ -24,13 +25,11 @@ nav { display:grid; gap:8px; }
 @media (hover: hover) {
   .nav-link:hover, .icon-button:hover { background: #e9f4f1; color: var(--teal); }
 }
-.sidebar-collapsed .nav-link { text-indent: -999px; position: relative; }
-.sidebar-collapsed .nav-link::after { content: attr(data-route); text-indent: 0; position: absolute; left: 50%; transform: translateX(-50%); font-size: 12px; text-transform: uppercase; }
 
-.page { width:min(1000px,calc(100% - 40px)); margin:0 auto; }
-.hero-page { padding:80px 0 40px; }
-.page-header { padding:50px 0 20px; }
-.page-header h1, .hero-copy h1 { font-size: clamp(28px, 4vw, 42px); margin: 0; }
+.page { width:min(1100px,calc(100% - 40px)); margin:0 auto; }
+.hero-page { padding:60px 0 30px; }
+.page-header { padding:40px 0 20px; }
+.page-header h1, .hero-copy h1 { font-size: clamp(26px, 4vw, 38px); margin: 0; }
 .lead { color:var(--muted); font-size:16px; line-height:1.6; margin:15px 0 30px; }
 .actions { display:flex; gap:12px; flex-wrap:wrap; }
 
@@ -49,7 +48,6 @@ nav { display:grid; gap:8px; }
 .form-card { display:grid; gap:18px; }
 label { display:grid; gap:6px; color:#3b4c5d; font-size:14px; font-weight:600; }
 input, textarea, select { width:100%; padding:12px; border:1px solid #cfd8d6; border-radius:8px; outline:none; background: #fff; font-family: inherit; }
-textarea { resize: vertical; line-height:1.6; }
 
 .calendar-card { max-width: 700px; margin: 0 auto; }
 .calendar-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
@@ -59,52 +57,109 @@ textarea { resize: vertical; line-height:1.6; }
 .calendar-day { aspect-ratio: 1; border-radius: 8px; border: 1px solid var(--line); display: flex; align-items: center; justify-content: center; font-size: 16px; cursor: pointer; transition: 0.2s; background: #faf9f5; position: relative; user-select: none; }
 .calendar-day.empty { border: none; background: transparent; cursor: default; }
 .calendar-day.has-session { background: #e9f4f1; border-color: var(--teal); color: var(--teal); font-weight: bold; }
-.calendar-day:active { transform: scale(0.95); }
 
 .session-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(200px,1fr)); gap:16px; }
 .session-card { padding:20px; text-decoration:none; color:inherit; border-radius: 12px; }
 .toast { position:fixed; left:50%; bottom:30px; transform:translateX(-50%); padding:12px 24px; border-radius:30px; background:var(--ink); color:white; font-size: 14px; z-index:100; pointer-events: none; }
 
-/* 强化学习详情与互动样式 */
-.study-page { padding:40px 0 70px; }
+/* 强化学习详情页样式与多维自适应瀑布流布局 */
+.study-page { padding:30px 0 60px; }
 .study-top { display:flex; justify-content:space-between; gap:20px; align-items:flex-start; margin-bottom:20px; }
-.study-top h1 { margin:4px 0; font-size:32px; }
+.study-top h1 { margin:4px 0; font-size:28px; }
 
-/* 搜索与卡片轮播区 */
-.deck-tools { margin-bottom: 20px; display: grid; gap: 12px; }
-.word-carousel { display: flex; gap: 16px; overflow-x: auto; scroll-snap-type: x mandatory; padding-bottom: 15px; scrollbar-width: thin; }
-.word-carousel::-webkit-scrollbar { height: 6px; }
-.word-carousel::-webkit-scrollbar-thumb { background: var(--line); border-radius: 3px; }
-.word-card { min-width: min(100%, 500px); flex: 0 0 auto; scroll-snap-align: start; }
+/* 搜索与工具栏 */
+.deck-tools { margin-bottom: 20px; display: flex; gap: 12px; flex-wrap: wrap; }
+#word-search-input { padding: 12px 16px; border-radius: 10px; font-size: 15px; border: 1px solid var(--line); background: white; box-shadow: 0 2px 8px rgba(0,0,0,0.03); }
 
-.word-heading { display:flex; align-items:baseline; gap:13px; flex-wrap:wrap; border-bottom:1px solid var(--line); padding-bottom:12px; margin-bottom:12px;}
-.word-heading h2 { margin:0; font-size:24px; }
-.pos { color:var(--teal); font-size:13px; font-weight:800; }
-.meta-section { margin-top: 10px; font-size: 14px; color: var(--muted); }
-.meta-section strong { color: var(--ink); }
-.example-box { padding:12px; background:#faf9f5; border-radius:8px; margin-top:8px; }
-.example-box .english { margin:0; font-size:15px; line-height:1.5; color: var(--ink); }
-.example-box .chinese { margin:4px 0 0; color:var(--muted); font-size:13px; }
-.example-box .grammar-note { margin-top:6px; font-size:12px; color: var(--teal); border-top: 1px dashed var(--line); padding-top: 4px; }
+/* iPad / 多端自适应瀑布流网格 Grid */
+.word-masonry-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 20px;
+  align-items: start;
+  margin-bottom: 35px;
+}
 
-/* 覆盖率分析提示 */
-.coverage-panel { background: #eef5f4; border: 1px solid #cce0dd; padding: 15px; border-radius: 10px; margin-bottom: 20px; font-size: 14px; }
+/* 单词卡片设计 */
+.word-card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  border-radius: 14px;
+  background: #fff;
+  border: 1px solid var(--line);
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+.word-card:hover {
+  box-shadow: 0 8px 25px rgba(23,50,77,.1);
+}
+
+.word-head-title {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  border-bottom: 2px solid var(--paper);
+  padding-bottom: 10px;
+}
+.word-head-title h2 { margin: 0; font-size: 24px; color: var(--ink); }
+.phonetic { color: var(--muted); font-size: 14px; font-family: sans-serif; font-weight: normal; }
+
+/* 分词性块 (Part of Speech block) */
+.pos-block {
+  background: var(--bg-subtle);
+  border-radius: 8px;
+  padding: 10px 12px;
+  border-left: 3px solid var(--teal);
+  margin-top: 4px;
+}
+.pos-badge {
+  display: inline-block;
+  background: var(--teal);
+  color: white;
+  font-size: 12px;
+  font-weight: bold;
+  padding: 2px 6px;
+  border-radius: 4px;
+  margin-right: 6px;
+}
+.pos-meaning { font-weight: 600; color: var(--ink); font-size: 15px; }
+
+/* 深度信息元数据扩展 */
+.meta-row { font-size: 13px; color: var(--muted); line-height: 1.5; }
+.meta-row strong { color: var(--ink); }
+
+/* 例句解析盒 */
+.example-box {
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 10px;
+  margin-top: 8px;
+}
+.example-box .english { margin: 0; font-size: 14px; font-weight: 600; color: var(--ink); line-height: 1.4; }
+.example-box .chinese { margin: 4px 0 0 0; font-size: 13px; color: var(--muted); }
+.example-box .grammar-note { margin-top: 6px; font-size: 12px; color: #1f6f6c; background: #eef7f6; padding: 6px 8px; border-radius: 4px; line-height: 1.4; }
+
+/* 词汇覆盖率面板 */
+.coverage-panel { background: #eef5f4; border: 1px solid #cce0dd; padding: 16px; border-radius: 12px; margin-bottom: 25px; font-size: 14px; }
 .coverage-panel span.used { color: var(--teal); font-weight: bold; }
 .coverage-panel span.unused { color: var(--danger); font-weight: bold; }
 
-/* 双篇阅读与逐句互动高亮 */
+/* 双篇阅读与逐句互动 */
 .reading-card { margin-top: 25px; }
-.sentence-item { padding: 10px 12px; border-radius: 6px; cursor: pointer; transition: 0.15s; margin-bottom: 4px; line-height: 1.7; font-size: 16px; }
-.sentence-item:hover { background: #f0f4f3; }
-.sentence-item.active { background: #e1f0ee; border-left: 4px solid var(--teal); }
-.sentence-trans { display: none; margin-top: 6px; padding: 8px 12px; background: #fff; border-radius: 6px; font-size: 14px; color: var(--muted); border: 1px solid var(--line); }
+.sentence-item { padding: 12px; border-radius: 8px; cursor: pointer; transition: 0.15s; margin-bottom: 6px; line-height: 1.7; font-size: 16px; border: 1px solid transparent; }
+.sentence-item:hover { background: #f2f7f6; border-color: var(--line); }
+.sentence-item.active { background: #e9f4f2; border-left: 4px solid var(--teal); }
+.sentence-trans { display: none; margin-top: 8px; padding: 10px; background: #fff; border-radius: 6px; font-size: 14px; color: var(--muted); border: 1px solid var(--line); line-height: 1.6; }
 .sentence-item.active .sentence-trans { display: block; }
-.interactive-word { border-bottom: 1.5px dotted var(--teal); color: var(--teal); cursor: pointer; padding: 0 2px; }
-.interactive-word.highlighted { background: var(--amber); color: #fff !important; border-radius: 3px; }
+.interactive-word { border-bottom: 2px dotted var(--teal); color: var(--teal); font-weight: 600; cursor: pointer; padding: 0 2px; }
+.interactive-word:hover { background: var(--amber); color: #fff; border-radius: 3px; }
 
-/* 适配 iPad Safari/Chrome 和移动端 */
-body.device-ipad .calendar-day, body.device-ipad-chrome .calendar-day, body.device-android-tablet .calendar-day { font-size: 18px; }
-body.device-mobile .app-shell { display: block; }
-body.device-mobile .sidebar { height: auto; position: fixed; bottom: 0; top: auto; width: 100%; flex-direction: row; padding: 10px; z-index: 50; border-top: 1px solid var(--line); max-height: unset; }
-body.device-mobile .sidebar-header { display: none; }
-body.device-mobile nav { display: flex; width: 100%; justify-content: space-around; }
+/* 适配不同机型与 iPad */
+@media (max-width: 768px) {
+  .word-masonry-grid { grid-template-columns: 1fr; }
+  .app-shell { display: block; }
+  .sidebar { height: auto; position: fixed; bottom: 0; top: auto; width: 100%; flex-direction: row; padding: 10px; z-index: 50; border-top: 1px solid var(--line); max-height: unset; }
+  .sidebar-header { display: none; }
+  nav { display: flex; width: 100%; justify-content: space-around; }
+}
