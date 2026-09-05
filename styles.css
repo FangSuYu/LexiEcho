@@ -88,7 +88,7 @@ input, textarea, select { width:100%; padding:12px; border:1px solid #cfd8d6; bo
   border-radius: 14px;
   background: #fff;
   border: 1px solid var(--line);
-  transition: transform 0.2s, box-shadow 0.2s;
+  transition: transform 0.2s, box-shadow 0.2s, border-color 0.2s;
 }
 .word-card:hover {
   box-shadow: 0 8px 25px rgba(23,50,77,.1);
@@ -154,6 +154,9 @@ input, textarea, select { width:100%; padding:12px; border:1px solid #cfd8d6; bo
 .sentence-item.active .sentence-trans { display: block; }
 .interactive-word { border-bottom: 2px dotted var(--teal); color: var(--teal); font-weight: 600; cursor: pointer; padding: 0 2px; }
 .interactive-word:hover { background: var(--amber); color: #fff; border-radius: 3px; }
+
+/* 数据管理按钮卡片 */
+.data-card .stacked-actions { display: flex; flex-direction: column; gap: 12px; }
 
 /* 适配不同机型与 iPad */
 @media (max-width: 768px) {

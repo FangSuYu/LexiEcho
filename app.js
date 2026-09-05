@@ -5,8 +5,8 @@ const SETTINGS_STORE = "settings";
 const API_KEY_LOCAL = "lexiecho-api-key";
 
 const PRESETS = {
-  deepseek: { baseUrl: "https://api.deepseek.com", models: ["deepseek-chat", "deepseek-reasoner"] },
-  kimi: { baseUrl: "https://api.moonshot.cn/v1", models: ["moonshot-v1-8k", "moonshot-v1-32k", "moonshot-v1-128k"] },
+  deepseek: { baseUrl: "https://api.deepseek.com", models: ["deepseek-v4-flash", "deepseek-v4-pro"] },
+  kimi: { baseUrl: "https://api.moonshot.cn/v1", models: ["kimi-k2.6", "kimi-k2.7-code", "kimi-k2.7-code-highspeed", "kimi-k3"] },
   custom: { baseUrl: "", models: [] },
 };
 
@@ -84,7 +84,6 @@ function normalizeBaseUrl(value) {
   return String(value || "").trim().replace(/\/+$/, "").replace(/\/chat\/completions$/i, "");
 }
 
-// 优化后的提示词：要求按词性分别拆分释义，并提供深度的语法与介词解析
 function generationPrompt(session) {
   const sourceWords = session.words.join(", ");
   return `你是一个专为英语零基础/薄弱初学者设计的深度语境强化系统。用户提供了以下今日背诵的单词清单，请为每个单词拆分不同词性的中文含义，构建贴近日常生活的造句，并生成两篇阅读短文。
@@ -107,14 +106,14 @@ function generationPrompt(session) {
             {
               "english": "贴近生活的简单英文例句",
               "chinese": "中文对照翻译",
-              "grammarNote": "该句子的详细语法成分拆解（如主谓宾、冠词、固定搭配 why/how 使用等）"
+              "grammarNote": "该句子的详细语法成分拆解"
             }
           ]
         }
       ],
-      "forms": "单词的时态/单复数变形（如 past: proved, pp: proven）",
+      "forms": "单词的时态/单复数变形",
       "phrases": ["常用搭配1", "常用搭配2"],
-      "prepositionUsage": "核心介词搭配及其底层使用逻辑（例如：prove sth to sb 中 to 表示方向/接收者）"
+      "prepositionUsage": "核心介词搭配及其底层使用逻辑"
     }
   ],
   "readings": {
@@ -144,30 +143,16 @@ function generationPrompt(session) {
 
 async function generateContent(session, provider, priorSessions, apiKey) {
   const prompt = generationPrompt(session);
-  const bodyParams = {
-    model: provider.model,
-    messages: [
-      { role: "system", content: "你必须输出严格、有效的 JSON。绝对不要包含 markdown 标记。" },
-      { role: "user", content: prompt }
-    ],
-    response_format: { type: "json_object" }
-  };
-  
-  const response = await fetch(`${normalizeBaseUrl(provider.baseUrl)}/chat/completions`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
-    body: JSON.stringify(bodyParams),
-  });
-  
-  if (!response.ok) {
-    const detail = await response.text();
-    throw new Error(`接口返回异常: ${response.status} ${detail.slice(0, 100)}`);
-  }
-  
-  const payload = await response.json();
-  const raw = payload.choices?.[0]?.message?.content;
+  const messages = [
+    { role: "system", content: "你必须输出严格、有效的 JSON。绝对不要包含 markdown 标记。" },
+    { role: "user", content: prompt }
+  ];
+
+  // 调用 modelClient 中的统一 callModel 方法
+  const res = await callModel(provider.model, messages, { apiKey });
+  const raw = res.content;
   if (!raw) throw new Error("模型返回了空内容");
-  
+
   const cleanJson = raw.replace(/^```json\s*|\s*```$/g, "").trim();
   const parsed = JSON.parse(cleanJson);
   return normalizeContent(parsed, session.words);
@@ -257,7 +242,7 @@ async function renderNew(app) {
     
     const provider = await getSetting("provider");
     const apiKey = localStorage.getItem(API_KEY_LOCAL);
-    if (!apiKey || !provider?.baseUrl || !provider?.model) {
+    if (!apiKey || !provider?.model) {
        toast("请先在“模型与数据配置”中设置 API Key 和接口。");
        return location.hash = "#settings";
     }
@@ -294,7 +279,6 @@ async function renderNew(app) {
   });
 }
 
-// 核心：自适应瀑布流 + 多词性分块展现 + 双短文互动学习详情页
 async function renderStudy(app, id) {
   const session = await getSession(id);
   if (!session || session.status !== "ready") {
@@ -303,7 +287,6 @@ async function renderStudy(app, id) {
   }
   const { content } = session;
   
-  // 检查短文1的词汇覆盖率
   const dailyTextFull = (content.readings.daily.sentences || []).map(s => s.english).join(" ").toLowerCase();
   const usedWords = [];
   const unusedWords = [];
@@ -324,19 +307,16 @@ async function renderStudy(app, id) {
       <a class="button secondary" href="#archive" style="font-size:13px; padding:8px 14px;">返回档案</a>
     </header>
 
-    <!-- 1. 词汇串联覆盖率面板 -->
     <div class="coverage-panel card">
       <h3 style="margin:0 0 8px 0; font-size:15px; color:var(--ink);">📊 短文1 (当天词汇串联) 覆盖率检查</h3>
       <p style="margin:4px 0;">已在短文中出现的词：<span class="used">${usedWords.length ? html(usedWords.join(', ')) : '无'}</span></p>
       <p style="margin:4px 0;">尚未在短文中出现的词：<span class="unused">${unusedWords.length ? html(unusedWords.join(', ')) : '无（全部覆盖！）'}</span></p>
     </div>
 
-    <!-- 2. 模糊搜索工具栏 -->
     <div class="deck-tools">
       <input type="text" id="word-search-input" placeholder="🔍 输入词汇或拼写模糊搜索卡片..." style="max-width:400px;" />
     </div>
 
-    <!-- 3. 自适应瀑布流卡片容器 -->
     <div class="word-masonry-grid" id="word-masonry-grid">
       ${content.words.map(w => `
         <article class="word-card card searchable-card" id="${w.id}" data-term="${html(w.term.toLowerCase())}">
@@ -345,7 +325,6 @@ async function renderStudy(app, id) {
             ${w.phonetic ? `<span class="phonetic">${html(w.phonetic)}</span>` : ''}
           </div>
 
-          <!-- 按词性 (partOfSpeech) 独立展示多重释义与造句 -->
           ${(w.senses && w.senses.length) ? w.senses.map(sense => `
             <div class="pos-block">
               <div>
@@ -362,7 +341,6 @@ async function renderStudy(app, id) {
             </div>
           `).join('') : '<p style="color:var(--muted)">暂无分词性说明</p>'}
 
-          <!-- 深度关联知识点 -->
           ${w.forms && w.forms !== "无" ? `<div class="meta-row"><strong>变形/时态:</strong> ${html(w.forms)}</div>` : ''}
           ${w.phrases && w.phrases.length ? `<div class="meta-row"><strong>常用搭配:</strong> ${html(w.phrases.join(" / "))}</div>` : ''}
           ${w.prepositionUsage ? `<div class="meta-row"><strong>介词及用法:</strong> ${html(w.prepositionUsage)}</div>` : ''}
@@ -370,7 +348,6 @@ async function renderStudy(app, id) {
       `).join("")}
     </div>
 
-    <!-- 4. 短文 1：当天词汇串联短文 -->
     <article class="card reading-card">
       <h2 style="margin-top:0;">${html(content.readings.daily.title)}</h2>
       <p style="font-size:13px; color:var(--muted); margin-bottom:15px;">点击任意句子查看中文翻译与深度语法；点击句子中的高亮单词可直达上方的单词卡片：</p>
@@ -379,7 +356,6 @@ async function renderStudy(app, id) {
       </div>
     </article>
 
-    <!-- 5. 短文 2：i+1 进阶拓展阅读 -->
     <article class="card reading-card">
       <h2 style="margin-top:0;">${html(content.readings.iPlusOne.title)}</h2>
       <p style="font-size:13px; color:var(--muted); margin-bottom:15px;">根据个人学习画像生成的进阶短文，点击句子展开分析：</p>
@@ -389,7 +365,6 @@ async function renderStudy(app, id) {
     </article>
   </section>`;
 
-  // 绑定搜索框检索卡片
   const searchInput = app.querySelector("#word-search-input");
   const cards = app.querySelectorAll(".searchable-card");
   searchInput.addEventListener("input", (e) => {
@@ -400,7 +375,6 @@ async function renderStudy(app, id) {
     });
   });
 
-  // 绑定逐句交互及单词点击跳转
   app.querySelectorAll(".sentence-item").forEach(item => {
     item.addEventListener("click", (e) => {
       if (e.target.classList.contains("interactive-word")) {
@@ -422,7 +396,6 @@ async function renderStudy(app, id) {
   });
 }
 
-// 渲染带有高亮与卡片定位的句子
 function renderInteractiveSentences(sentences = [], words = []) {
   if (!sentences.length) return `<p style="color:var(--muted)">暂无短文内容</p>`;
   const sortedWords = [...words].sort((a, b) => b.term.length - a.term.length);
@@ -447,7 +420,6 @@ function renderInteractiveSentences(sentences = [], words = []) {
   }).join("");
 }
 
-// 档案历程（支持双击）
 async function renderArchive(app) {
   app.append(document.getElementById("archive-template").content.cloneNode(true));
   const sessions = await listSessions();
@@ -502,7 +474,6 @@ async function renderArchive(app) {
   drawCalendar();
 }
 
-// 模型配置与数据导入/导出/清空
 async function renderSettings(app) {
   app.append(document.getElementById("settings-template").content.cloneNode(true));
   const saved = await getSetting("provider", { preset: "kimi" });
