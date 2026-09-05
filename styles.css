@@ -1,32 +1,36 @@
 :root { 
   --ink:#17324d; --muted:#697786; --paper:#f8f6f0; --surface:#ffffff; 
-  --line:#e5e4dc; --teal:#268f8b; --danger:#b84f4f; 
+  --line:#e5e4dc; --teal:#268f8b; --danger:#b84f4f; --amber:#efae5c;
   --shadow:0 14px 45px rgba(23,50,77,.08); 
   font-family: system-ui, -apple-system, sans-serif; 
   color:var(--ink); background:var(--paper); 
 }
+html, body { overflow-x: hidden; margin:0; padding:0; -webkit-tap-highlight-color: transparent; }
 * { box-sizing:border-box; }
-body { margin:0; min-width:320px; -webkit-tap-highlight-color: transparent; }
+button,input,textarea,select { font:inherit; } button { cursor:pointer; }
 
-/* 解决 iPad/手机 底部工具栏导致的滚动留白 */
-.app-shell { min-height:100dvh; display:grid; grid-template-columns:220px minmax(0,1fr); transition: grid-template-columns 0.3s ease; }
+.app-shell { min-height:100vh; display:grid; grid-template-columns:220px minmax(0,1fr); transition: grid-template-columns 0.3s ease; }
 .app-shell.sidebar-collapsed { grid-template-columns: 60px minmax(0,1fr); }
 
-.sidebar { border-right:1px solid var(--line); background:rgba(255,255,255,.9); padding:20px 10px; display:flex; flex-direction:column; position:sticky; top:0; height:100dvh; overflow-y:auto; transition: padding 0.3s ease; }
+.sidebar { border-right:1px solid var(--line); background:rgba(255,255,255,.9); padding:20px 10px; display:flex; flex-direction:column; position:sticky; top:0; max-height:100vh; overflow-y:auto; transition: padding 0.3s ease; }
 .sidebar-header { display: flex; justify-content: space-between; align-items: center; padding-bottom: 20px; margin-bottom: 10px; border-bottom: 1px solid var(--line); }
 .brand { text-decoration:none; color:var(--ink); font-size: 18px; overflow: hidden; white-space: nowrap; transition: opacity 0.2s; }
 .sidebar-collapsed .brand { opacity: 0; pointer-events: none; width: 0; }
 .icon-button { background: none; border: none; font-size: 16px; cursor: pointer; color: var(--muted); padding: 5px; border-radius: 6px; }
-.icon-button:hover { background: var(--line); }
 
 nav { display:grid; gap:8px; }
 .nav-link { text-decoration:none; color:var(--muted); border-radius:10px; padding:12px; font-size:15px; white-space: nowrap; overflow: hidden; }
-.nav-link:hover, .nav-link.active { background:#e9f4f1; color:var(--teal); font-weight:700; }
+.nav-link.active { background:#e9f4f1; color:var(--teal); font-weight:700; }
+/* 仅在非触屏设备应用 Hover，解决手机端需双击的问题 */
+@media (hover: hover) {
+  .nav-link:hover, .icon-button:hover { background: #e9f4f1; color: var(--teal); }
+}
 .sidebar-collapsed .nav-link { text-indent: -999px; position: relative; }
 .sidebar-collapsed .nav-link::after { content: attr(data-route); text-indent: 0; position: absolute; left: 50%; transform: translateX(-50%); font-size: 12px; text-transform: uppercase; }
 
 .page { width:min(1000px,calc(100% - 40px)); margin:0 auto; }
 .hero-page { padding:80px 0 40px; }
+.page-header { padding:50px 0 20px; }
 .page-header h1, .hero-copy h1 { font-size: clamp(28px, 4vw, 42px); margin: 0; }
 .lead { color:var(--muted); font-size:16px; line-height:1.6; margin:15px 0 30px; }
 .actions { display:flex; gap:12px; flex-wrap:wrap; }
@@ -38,19 +42,16 @@ nav { display:grid; gap:8px; }
 .danger { background: #fff0f0; color: var(--danger); border-color: #ffd6d6; }
 .wide { width:100%; }
 
-/* Spinner */
 .spinner { width: 20px; height: 20px; border: 3px solid rgba(255,255,255,0.3); border-radius: 50%; border-top-color: #fff; animation: spin 1s ease-in-out infinite; }
 .hidden { display: none !important; }
 @keyframes spin { to { transform: rotate(360deg); } }
 
-/* Forms & Layout */
 .two-columns { display:grid; grid-template-columns: 1fr; gap:24px; padding-bottom:50px; max-width: 600px; }
 .form-card { display:grid; gap:18px; }
 label { display:grid; gap:6px; color:#3b4c5d; font-size:14px; font-weight:600; }
 input, textarea, select { width:100%; padding:12px; border:1px solid #cfd8d6; border-radius:8px; outline:none; background: #fff; font-family: inherit; }
-textarea { resize: vertical; }
+textarea { resize: vertical; line-height:1.6; }
 
-/* Calendar */
 .calendar-card { max-width: 700px; margin: 0 auto; }
 .calendar-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
 .calendar-header h2 { margin: 0; font-size: 20px; }
@@ -65,9 +66,27 @@ textarea { resize: vertical; }
 .session-card { padding:20px; text-decoration:none; color:inherit; border-radius: 12px; }
 .toast { position:fixed; left:50%; bottom:30px; transform:translateX(-50%); padding:12px 24px; border-radius:30px; background:var(--ink); color:white; font-size: 14px; z-index:100; pointer-events: none; }
 
-/* Device specific tweaks */
+/* 学习详情卡片样式恢复 */
+.study-page { padding:40px 0 70px; }
+.study-top { display:flex; justify-content:space-between; gap:20px; align-items:flex-start; margin-bottom:30px; }
+.study-top h1 { margin:4px 0; font-size:32px; }
+.word-nav { margin:20px 0; display:flex; flex-wrap:wrap; gap:8px; }
+.word-chip { border:1px solid var(--teal); color:var(--teal); padding:6px 12px; border-radius:20px; font-size:13px; text-decoration:none; }
+.word-card { margin-bottom:20px; }
+.word-heading { display:flex; align-items:baseline; gap:13px; flex-wrap:wrap; border-bottom:1px solid var(--line); padding-bottom:16px; margin-bottom:16px;}
+.word-heading h2 { margin:0; font-size:24px; }
+.pos { color:var(--teal); font-size:13px; font-weight:800; }
+.meaning { margin:10px 0; font-size:16px; }
+.example { padding:15px; background:#faf9f5; border-radius:10px; margin-bottom:10px; }
+.example .english { margin:0; font-size:16px; line-height:1.6; }
+.example .chinese { margin:7px 0 0; color:var(--muted); font-size:14px; }
+.feedback-tags { display:flex; flex-wrap:wrap; gap:8px; margin-top:10px;}
+.feedback-tag { padding:6px 12px; border:1px solid #d8e0de; background:#fff; color:#5a6874; border-radius:20px; font-size:12px; }
+.feedback-tag.selected { background:#fff1dc; border-color:#efc47d; color:#92601a; }
+.reading-text { margin-top:15px; line-height:1.8; font-size:16px; white-space:pre-line; }
+
 body.device-ipad .calendar-day, body.device-android-tablet .calendar-day { font-size: 18px; }
 body.device-mobile .app-shell { display: block; }
-body.device-mobile .sidebar { height: auto; position: fixed; bottom: 0; top: auto; width: 100%; flex-direction: row; padding: 10px; z-index: 50; border-top: 1px solid var(--line); }
+body.device-mobile .sidebar { height: auto; position: fixed; bottom: 0; top: auto; width: 100%; flex-direction: row; padding: 10px; z-index: 50; border-top: 1px solid var(--line); max-height: unset; }
 body.device-mobile .sidebar-header { display: none; }
 body.device-mobile nav { display: flex; width: 100%; justify-content: space-around; }

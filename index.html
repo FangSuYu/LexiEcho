@@ -30,7 +30,7 @@
     <template id="home-template">
       <section class="page hero-page">
         <div class="hero-copy">
-          <h1>LexiEcho 个人英语工具</h1>
+          <h1>LexiEcho 英语强化工具</h1>
           <p class="lead">导入今日词表，自动生成定制化的自然例句与阅读短文。</p>
           <div class="actions">
             <a class="button primary" href="#new">创建今日学习</a>
@@ -52,14 +52,10 @@
         <form id="new-study-form" class="card form-card">
           <label>日期<input id="study-date" type="date" required /></label>
           <label>今日词表
-            <textarea id="word-list" rows="8" placeholder="每行一个单词或短语"></textarea>
+            <textarea id="word-list" rows="10" placeholder="每行一个单词或短语，例如：&#10;prove&#10;identify&#10;be responsible for"></textarea>
           </label>
-          <label>识别截图（可选）
-            <input id="word-images" type="file" accept="image/*" multiple />
-          </label>
-          <div id="image-preview" class="image-preview"></div>
           <label>附加要求（可选）
-            <textarea id="session-note" rows="2" placeholder="如：侧重职场交流场景"></textarea>
+            <textarea id="session-note" rows="3" placeholder="例如：侧重职场交流场景"></textarea>
           </label>
           <button class="button primary wide" id="submit-btn" type="submit">
             <span class="btn-text">生成强化内容</span>
@@ -72,7 +68,7 @@
     <template id="archive-template">
       <section class="page page-header">
         <h1>学习档案</h1>
-        <p>长按某天查看简略信息，点击进入详细档案。</p>
+        <p>长按日期查看简略，点击进入详情记录。</p>
       </section>
       <section class="page">
         <div class="calendar-card card">
@@ -104,11 +100,11 @@
           </label>
           <label>接口地址<input id="provider-url" type="url" required /></label>
           <label>模型名称
-            <input id="provider-model" type="text" list="model-options" required />
-            <datalist id="model-options"></datalist>
+            <!-- 预设模型原生下拉框，自定义模式切换为输入框，解决 iPad 下拉位置偏移 Bug -->
+            <select id="provider-model-select"></select>
+            <input id="provider-model-input" type="text" style="display:none;" />
           </label>
-          <label>API Key<input id="provider-key" type="password" /></label>
-          <label class="checkbox-line"><input id="vision-enabled" type="checkbox" />支持图片识别</label>
+          <label>API Key<input id="provider-key" type="password" placeholder="保存在本设备" /></label>
           <button type="submit" class="button primary wide">保存配置</button>
           <p id="provider-status" class="form-status"></p>
         </form>
