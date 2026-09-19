@@ -29,11 +29,18 @@
       <main id="app" tabindex="-1"></main>
     </div>
 
+    <!-- 全页面生成提示动画遮罩 -->
+    <div id="full-page-loading" class="full-page-loading hidden">
+      <div class="full-page-spinner"></div>
+      <h3 style="margin:0 0 10px 0; font-size:20px;">AI 正在生成深度强化学习内容...</h3>
+      <p style="margin:0; opacity:0.85; font-size:14px; max-width:400px; line-height:1.6;">正在拆解单词例句，并生成词汇串连短文与三梯度专项阅读短文，请稍候</p>
+    </div>
+
     <template id="home-template">
       <section class="page hero-page">
         <div class="hero-copy">
           <h1>LexiEcho 英语语境强化</h1>
-          <p class="lead">导入今日词表，生成定制化零基础友好例句与双篇深度阅读短文。</p>
+          <p class="lead">导入今日词表，生成定制化零基础友好例句与深度阅读短文。</p>
           <div class="actions">
             <a class="button primary" href="#new">创建今日学习</a>
             <a class="button secondary" href="#archive">查看学习档案</a>
@@ -70,7 +77,7 @@
     <template id="archive-template">
       <section class="page page-header">
         <h1>学习档案</h1>
-        <p>双击日期查看简略，点击进入详情记录。</p>
+        <p>日历可查看对应日期记录；可在下方列表中快捷管理与清理档案。</p>
       </section>
       <section class="page">
         <div class="calendar-card card">
@@ -83,6 +90,14 @@
             <span>日</span><span>一</span><span>二</span><span>三</span><span>四</span><span>五</span><span>六</span>
           </div>
           <div id="calendar-grid" class="calendar-grid"></div>
+        </div>
+
+        <!-- 学习档案管理删除列表 -->
+        <div class="archive-list-container card">
+          <div class="archive-list-header">
+            <h3>📂 档案管理与清理</h3>
+          </div>
+          <div id="archive-list" class="archive-list"></div>
         </div>
       </section>
     </template>

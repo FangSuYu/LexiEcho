@@ -94,6 +94,13 @@ async function saveSession(session) {
   });
 }
 
+async function deleteSession(id) {
+  const store = await storeTransaction(SESSION_STORE, "readwrite");
+  return new Promise((resolve) => {
+    store.delete(id).onsuccess = () => resolve();
+  });
+}
+
 function html(value = "") {
   return String(value).replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;");
 }
@@ -113,10 +120,17 @@ function normalizeBaseUrl(value) {
 
 function generationPrompt(session) {
   const sourceWords = session.words.join(", ");
-  return `你是一个专为英语零基础/薄弱初学者设计的深度语境强化系统。用户提供了以下今日背诵的单词清单，请为每个单词拆分不同词性的中文含义，构建贴近日常生活的造句，并生成两篇阅读短文。
+  return `你是一个专为英语零基础/薄弱初学者设计的深度语境强化系统。用户提供了以下今日背诵的单词清单，请为每个单词拆分不同词性的中文含义，构建贴近日常生活的造句，并生成两类阅读短文。
 
 词表：${sourceWords}
 补充说明：${session.note || "基础较弱，需要详细解释介词、语法与结构"}
+
+【短文生成规则】：
+1. 当天词汇串联短文（daily）：必须最大程度融入今日词汇。最少生成1篇短文，若词汇量较多一篇无法完全覆盖，可生成2篇或最多3篇短文（最多3篇）。确保词汇覆盖率尽可能达到100%。
+2. 阅读理解专项短文（graded）：固定生成3篇不同难度的阅读短文：
+   - 简单 (easy)：小学到初中难度，词汇简单，句式基础易懂。
+   - 中等 (medium)：高中到大学难度，包含复合句与丰富词汇。
+   - 难 (hard)：四六级到考研难度，包含长难句、高级表达与深层语境。
 
 请严格按 JSON 输出，不要带有任何 Markdown 标记或解释性文字。JSON 结构必须严格如下：
 {
@@ -150,25 +164,49 @@ function generationPrompt(session) {
     }
   ],
   "readings": {
-    "daily": {
-      "title": "短文1：当天词汇串联实战",
-      "sentences": [
-        {
-          "english": "英文句子内容...",
-          "chinese": "对应的中文翻译...",
-          "explanation": "本句核心语法结构、关键介词与用词解析"
-        }
-      ]
-    },
-    "iPlusOne": {
-      "title": "短文2：i+1 进阶拓展阅读",
-      "sentences": [
-        {
-          "english": "英文句子内容...",
-          "chinese": "对应的中文翻译...",
-          "explanation": "本句语法结构与核心考点解析"
-        }
-      ]
+    "daily": [
+      {
+        "title": "当天词汇串联实战（篇章1）",
+        "sentences": [
+          {
+            "english": "英文句子内容...",
+            "chinese": "对应的中文翻译...",
+            "explanation": "本句核心语法结构、关键介词与用词解析"
+          }
+        ]
+      }
+    ],
+    "graded": {
+      "easy": {
+        "title": "阅读理解专项 - 简单（小学~初中难度）",
+        "sentences": [
+          {
+            "english": "英文句子内容...",
+            "chinese": "对应的中文翻译...",
+            "explanation": "本句语法结构解析"
+          }
+        ]
+      },
+      "medium": {
+        "title": "阅读理解专项 - 中等（高中~大学难度）",
+        "sentences": [
+          {
+            "english": "英文句子内容...",
+            "chinese": "对应的中文翻译...",
+            "explanation": "本句语法结构解析"
+          }
+        ]
+      },
+      "hard": {
+        "title": "阅读理解专项 - 难（四六级~考研难度）",
+        "sentences": [
+          {
+            "english": "英文句子内容...",
+            "chinese": "对应的中文翻译...",
+            "explanation": "本句语法结构解析"
+          }
+        ]
+      }
     }
   }
 }`;
@@ -209,8 +247,8 @@ function normalizeContent(data, inputWords) {
     prepositionUsage: word.prepositionUsage || "",
   }));
   
-  const formatReadings = (section) => ({
-    title: section?.title || "阅读文章",
+  const formatReadingItem = (section, defaultTitle = "阅读文章") => ({
+    title: section?.title || defaultTitle,
     sentences: (section?.sentences || []).map(s => ({
       english: s.english || "",
       chinese: s.chinese || "",
@@ -218,12 +256,33 @@ function normalizeContent(data, inputWords) {
     }))
   });
 
+  // 规范化处理当天词汇串联短文（1~3篇）
+  let dailyReadings = [];
+  if (Array.isArray(data.readings?.daily)) {
+    dailyReadings = data.readings.daily.map((item, idx) => formatReadingItem(item, `当天词汇串联短文 (${idx + 1})`));
+  } else if (data.readings?.daily && typeof data.readings.daily === 'object') {
+    dailyReadings = [formatReadingItem(data.readings.daily, "当天词汇串联短文")];
+  } else {
+    dailyReadings = [formatReadingItem({}, "当天词汇串联短文")];
+  }
+
+  // 规范化处理专项阅读（简单、中等、难）及兼容旧格式
+  const gradedRaw = data.readings?.graded || {};
+  const easy = formatReadingItem(gradedRaw.easy, "阅读专项：简单（小学~初中）");
+  let medium = formatReadingItem(gradedRaw.medium, "阅读专项：中等（高中~大学）");
+  const hard = formatReadingItem(gradedRaw.hard, "阅读专项：难（四六级~考研）");
+
+  // 旧格式 iPlusOne 兼容映射至 medium
+  if (!gradedRaw.medium && data.readings?.iPlusOne) {
+    medium = formatReadingItem(data.readings.iPlusOne, "i+1 进阶拓展阅读（历史记录）");
+  }
+
   return { 
     summary: data.summary || "", 
     words, 
     readings: {
-      daily: formatReadings(data.readings?.daily),
-      iPlusOne: formatReadings(data.readings?.iPlusOne)
+      daily: dailyReadings,
+      graded: { easy, medium, hard }
     } 
   };
 }
@@ -282,9 +341,12 @@ async function renderNew(app) {
     const btn = app.querySelector("#submit-btn");
     const textSpan = btn.querySelector(".btn-text");
     const spinner = btn.querySelector(".spinner");
+    const loadingOverlay = document.getElementById("full-page-loading");
+
     btn.disabled = true;
     textSpan.classList.add("hidden");
     spinner.classList.remove("hidden");
+    loadingOverlay?.classList.remove("hidden");
 
     const session = {
       id: crypto.randomUUID(), studyDate: app.querySelector("#study-date").value,
@@ -307,6 +369,7 @@ async function renderNew(app) {
       btn.disabled = false;
       textSpan.classList.remove("hidden");
       spinner.classList.add("hidden");
+      loadingOverlay?.classList.add("hidden");
     }
   });
 }
@@ -315,13 +378,31 @@ async function renderNew(app) {
 async function renderStudy(app, id) {
   const session = await getSession(id);
   if (!session || session.status !== "ready") {
-    app.innerHTML = `<section class="page page-header"><h1>记录不可用或未就绪</h1><a class="button primary" href="#home">返回概览</a></section>`;
+    app.innerHTML = `
+      <section class="page page-header">
+        <h1>记录不可用或未就绪</h1>
+        <p style="color:var(--muted)">当前学习记录可能已生成失败或已被清理。</p>
+        <div class="actions" style="margin-top:20px;">
+          <a class="button primary" href="#archive">返回学习档案</a>
+          ${session ? `<button class="button danger" id="btn-delete-invalid">删除此记录</button>` : ''}
+        </div>
+      </section>`;
+    if (session) {
+      app.querySelector("#btn-delete-invalid")?.addEventListener("click", async () => {
+        if (confirm("确定要删除这条不可用的学习记录吗？")) {
+          await deleteSession(session.id);
+          toast("记录已成功删除");
+          location.hash = "#archive";
+        }
+      });
+    }
     return;
   }
   const { content } = session;
-  currentWordIndex = 0; // 默认展示第 1 个单词
+  currentWordIndex = 0;
 
-  const dailyTextFull = (content.readings.daily.sentences || []).map(s => s.english).join(" ").toLowerCase();
+  // 统计所有串联短文中的英文句子覆盖情况
+  const dailyTextFull = content.readings.daily.flatMap(d => d.sentences || []).map(s => s.english).join(" ").toLowerCase();
   const usedWords = [];
   const unusedWords = [];
   content.words.forEach(w => {
@@ -331,6 +412,51 @@ async function renderStudy(app, id) {
       unusedWords.push(w.term);
     }
   });
+
+  // 构建短文 Tab 选项卡 HTML
+  const dailyTabsHtml = content.readings.daily.map((item, idx) => 
+    `<button class="tab-btn ${idx === 0 ? 'active' : ''}" data-tab="tab-daily-${idx}">🔤 ${html(item.title || `词汇串联 (${idx + 1})`)}</button>`
+  ).join("");
+  const gradedEasyTabHtml = `<button class="tab-btn ${content.readings.daily.length === 0 ? 'active' : ''}" data-tab="tab-graded-easy">🟢 专项-简单(初中)</button>`;
+  const gradedMediumTabHtml = `<button class="tab-btn" data-tab="tab-graded-medium">🟡 专项-中等(高中大学)</button>`;
+  const gradedHardTabHtml = `<button class="tab-btn" data-tab="tab-graded-hard">🔴 专项-难(四六级考研)</button>`;
+
+  // 构建短文 Tab 内容 HTML
+  const dailyContentsHtml = content.readings.daily.map((item, idx) => `
+    <div class="tab-content ${idx === 0 ? '' : 'hidden'}" id="tab-daily-${idx}">
+      <p style="font-size:13px; color:var(--muted); margin-bottom:12px;">点击任意句子查看中文翻译与语法解析；点击高亮单词定位词汇卡片：</p>
+      <div class="sentences-container">
+        ${renderInteractiveSentences(item.sentences, content.words)}
+      </div>
+    </div>
+  `).join("");
+
+  const gradedEasyContentHtml = `
+    <div class="tab-content ${content.readings.daily.length === 0 ? '' : 'hidden'}" id="tab-graded-easy">
+      <p style="font-size:13px; color:var(--muted); margin-bottom:12px;">阅读理解专项 - 简单难度（小学~初中难度）：</p>
+      <div class="sentences-container">
+        ${renderInteractiveSentences(content.readings.graded.easy.sentences, content.words)}
+      </div>
+    </div>
+  `;
+
+  const gradedMediumContentHtml = `
+    <div class="tab-content hidden" id="tab-graded-medium">
+      <p style="font-size:13px; color:var(--muted); margin-bottom:12px;">阅读理解专项 - 中等难度（高中~大学难度）：</p>
+      <div class="sentences-container">
+        ${renderInteractiveSentences(content.readings.graded.medium.sentences, content.words)}
+      </div>
+    </div>
+  `;
+
+  const gradedHardContentHtml = `
+    <div class="tab-content hidden" id="tab-graded-hard">
+      <p style="font-size:13px; color:var(--muted); margin-bottom:12px;">阅读理解专项 - 高难度（四六级~考研难度）：</p>
+      <div class="sentences-container">
+        ${renderInteractiveSentences(content.readings.graded.hard.sentences, content.words)}
+      </div>
+    </div>
+  `;
 
   app.innerHTML = `<section class="page study-page">
     <!-- 1. 顶部紧凑标题与信息折叠入口 -->
@@ -351,7 +477,7 @@ async function renderStudy(app, id) {
         </div>
         <p class="modal-summary"><strong>💡 本次核心概览：</strong><br/>${html(content.summary)}</p>
         <div class="coverage-panel card" style="box-shadow:none;">
-          <h4 style="margin:0 0 8px 0; font-size:14px; color:var(--ink);">📊 短文1 词汇覆盖率检查</h4>
+          <h4 style="margin:0 0 8px 0; font-size:14px; color:var(--ink);">📊 词汇串联短文覆盖率检查</h4>
           <p style="margin:4px 0;">已覆盖词汇：<span class="used">${usedWords.length ? html(usedWords.join(', ')) : '无'}</span></p>
           <p style="margin:4px 0;">未覆盖词汇：<span class="unused">${unusedWords.length ? html(unusedWords.join(', ')) : '无（全部覆盖！）'}</span></p>
         </div>
@@ -366,7 +492,7 @@ async function renderStudy(app, id) {
     <div class="deck-tools">
       <input type="text" id="word-search-input" class="word-search-input" placeholder="🔍 输入单词搜索..." />
       <select id="word-select-dropdown" class="word-select-dropdown">
-        ${content.words.map((w, idx) => `<option value="${idx}">${idx + 1}. ${html(w.term)}</option>`).join("")}
+        ${content.words.map((w, idx) => `<option value="${idx}">${idx + 1}.${html(w.term)}</option>`).join("")}
       </select>
     </div>
 
@@ -384,27 +510,21 @@ async function renderStudy(app, id) {
       <button class="button secondary" id="btn-next-word" ${content.words.length <= 1 ? 'disabled' : ''}>下一个单词 ▶</button>
     </div>
 
-    <!-- 5. 短文左右 Tab 切换卡片 -->
+    <!-- 5. 短文 Tab 切换卡片 -->
     <article class="card reading-swipe-container">
       <div class="reading-tabs">
-        <button class="tab-btn active" data-tab="tab-daily">${html(content.readings.daily.title)}</button>
-        <button class="tab-btn" data-tab="tab-iplusone">${html(content.readings.iPlusOne.title)}</button>
+        ${dailyTabsHtml}
+        ${gradedEasyTabHtml}
+        ${gradedMediumTabHtml}
+        ${gradedHardTabHtml}
       </div>
-      <div class="tab-content" id="tab-daily">
-        <p style="font-size:13px; color:var(--muted); margin-bottom:12px;">点击任意句子查看中文翻译与深度语法；点击高亮单词可跳转定位：</p>
-        <div class="sentences-container">
-          ${renderInteractiveSentences(content.readings.daily.sentences, content.words)}
-        </div>
-      </div>
-      <div class="tab-content hidden" id="tab-iplusone">
-        <p style="font-size:13px; color:var(--muted); margin-bottom:12px;">根据个人画像生成的进阶短文，点击句子展开分析：</p>
-        <div class="sentences-container">
-          ${renderInteractiveSentences(content.readings.iPlusOne.sentences, content.words)}
-        </div>
-      </div>
+      ${dailyContentsHtml}
+      ${gradedEasyContentHtml}
+      ${gradedMediumContentHtml}
+      ${gradedHardContentHtml}
     </article>
 
-    <!-- 6. 悬浮速滑控件（返回顶部 / 跳转底部） -->
+    <!-- 6. 悬浮速滑控件 -->
     <div class="floating-scroll-controls">
       <button class="floating-btn" id="btn-scroll-top" title="返回顶部">▲</button>
       <button class="floating-btn" id="btn-scroll-bottom" title="跳转底部">▼</button>
@@ -571,21 +691,62 @@ function renderSingleWordCard(w, index, total) {
   `;
 }
 
+// 【关键修复 BUG】：安全高亮交互单词，绝不破坏 HTML 标签本身
 function renderInteractiveSentences(sentences = [], words = []) {
   if (!sentences.length) return `<p style="color:var(--muted)">暂无短文内容</p>`;
-  const sortedWords = [...words].sort((a, b) => b.term.length - a.term.length);
+  
+  // 按单词长度降序排列，优先匹配长单词
+  const sortedWords = [...words].filter(w => w && w.term).sort((a, b) => b.term.length - a.term.length);
 
   return sentences.map(s => {
-    let htmlText = html(s.english);
+    const rawText = s.english || "";
+    const matches = [];
+
+    // 1. 在原始纯文本中定位所有单词匹配区间
     sortedWords.forEach(w => {
       const termEscaped = w.term.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
       const regex = new RegExp(`\\b(${termEscaped})\\b`, "gi");
-      htmlText = htmlText.replace(regex, `<span class="interactive-word" data-target-id="${w.id}" title="点击跳转至词汇卡片">$1</span>`);
+      let match;
+      while ((match = regex.exec(rawText)) !== null) {
+        matches.push({
+          start: match.index,
+          end: match.index + match[0].length,
+          wordId: w.id,
+          text: match[0]
+        });
+      }
     });
+
+    // 2. 按起始位置升序排列；若位置相同，按匹配长度降序
+    matches.sort((a, b) => a.start - b.start || (b.end - b.start) - (a.end - a.start));
+
+    // 3. 过滤重叠区间
+    const filteredMatches = [];
+    let lastEnd = 0;
+    for (const m of matches) {
+      if (m.start >= lastEnd) {
+        filteredMatches.push(m);
+        lastEnd = m.end;
+      }
+    }
+
+    // 4. 安全分段拼装转义 HTML，绝不二次replace HTML属性
+    let resultHtml = "";
+    let currentIndex = 0;
+    for (const m of filteredMatches) {
+      if (m.start > currentIndex) {
+        resultHtml += html(rawText.slice(currentIndex, m.start));
+      }
+      resultHtml += `<span class="interactive-word" data-target-id="${m.wordId}" title="点击跳转至词汇卡片">${html(rawText.slice(m.start, m.end))}</span>`;
+      currentIndex = m.end;
+    }
+    if (currentIndex < rawText.length) {
+      resultHtml += html(rawText.slice(currentIndex));
+    }
 
     return `
       <div class="sentence-item">
-        <div class="sentence-en">${htmlText}</div>
+        <div class="sentence-en">${resultHtml}</div>
         <div class="sentence-trans">
           <strong>中文翻译：</strong>${html(s.chinese)}<br/>
           <strong style="color:var(--teal);">语法与表达解析：</strong>${html(s.explanation)}
@@ -597,13 +758,13 @@ function renderInteractiveSentences(sentences = [], words = []) {
 
 async function renderArchive(app) {
   app.append(document.getElementById("archive-template").content.cloneNode(true));
-  const sessions = await listSessions();
-  const sessionMap = new Map(sessions.map(s => [s.studyDate, s]));
+  let sessions = await listSessions();
   const title = app.querySelector("#calendar-title");
   const grid = app.querySelector("#calendar-grid");
   
   function drawCalendar() {
     grid.innerHTML = "";
+    const sessionMap = new Map(sessions.map(s => [s.studyDate, s]));
     const year = currentViewDate.getFullYear(), month = currentViewDate.getMonth();
     title.textContent = `${year}年 ${month + 1}月`;
     const firstDay = new Date(year, month, 1).getDay();
@@ -643,10 +804,54 @@ async function renderArchive(app) {
       grid.appendChild(cell);
     }
   }
+
+  // 渲染档案管理删除列表
+  function renderSessionList() {
+    const listEl = app.querySelector("#archive-list");
+    if (!listEl) return;
+    if (!sessions.length) {
+      listEl.innerHTML = `<p style="color:var(--muted); text-align:center; padding:10px;">暂无学习档案记录</p>`;
+      return;
+    }
+    listEl.innerHTML = sessions.map(s => {
+      const isReady = s.status === "ready";
+      const statusText = isReady ? "就绪" : (s.status === "generating" ? "生成中" : "失败/不可用");
+      const statusClass = isReady ? "status-tag ready" : "status-tag failed";
+      
+      return `
+        <div class="archive-item">
+          <div class="archive-item-info">
+            <span class="archive-date">${html(s.studyDate)}</span>
+            <span class="${statusClass}">${statusText}</span>
+            <span class="archive-word-cnt">${s.words?.length || 0} 个词</span>
+          </div>
+          <div class="archive-item-actions">
+            ${isReady ? `<a class="button secondary" style="padding:6px 12px; font-size:13px;" href="#study/${s.id}">查看详情</a>` : ''}
+            <button class="button danger btn-delete-session" data-id="${s.id}" style="padding:6px 12px; font-size:13px;">删除档案</button>
+          </div>
+        </div>
+      `;
+    }).join("");
+
+    listEl.querySelectorAll(".btn-delete-session").forEach(btn => {
+      btn.addEventListener("click", async (e) => {
+        const id = e.target.dataset.id;
+        const targetSession = sessions.find(s => s.id === id);
+        if (confirm(`确定要删除 ${targetSession?.studyDate || ''} 的这份学习档案吗？`)) {
+          await deleteSession(id);
+          toast("档案已成功删除！");
+          sessions = await listSessions();
+          drawCalendar();
+          renderSessionList();
+        }
+      });
+    });
+  }
   
   app.querySelector("#prev-month").addEventListener("click", () => { currentViewDate.setMonth(currentViewDate.getMonth() - 1); drawCalendar(); });
   app.querySelector("#next-month").addEventListener("click", () => { currentViewDate.setMonth(currentViewDate.getMonth() + 1); drawCalendar(); });
   drawCalendar();
+  renderSessionList();
 }
 
 async function renderSettings(app) {
@@ -723,7 +928,7 @@ async function renderSettings(app) {
           store.put(s);
         }
         toast(`成功导入 ${importedSessions.length} 条学习档案！`);
-        setTimeout(() => location.hash = "#home", 1000);
+        setTimeout(() => location.hash = "#archive", 1000);
       } catch (err) {
         toast(`导入失败: ${err.message}`);
       }
